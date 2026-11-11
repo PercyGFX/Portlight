@@ -4,6 +4,9 @@
 ;   iscc /DAppVersion=0.1.0 installer\portlight.iss
 ;
 ; Installs per user into %LOCALAPPDATA%\Programs\Portlight, so no admin prompt.
+; The optional Portlight Collector service is installed later from inside the
+; app, with one admin prompt (portlight-service.exe install), and removed by
+; the uninstaller.
 ; A silent update can be run with:
 ;   Portlight-Setup-x.y.z.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /launch=--background
 
@@ -54,6 +57,9 @@ Name: "autostart"; Description: "Start Portlight when I sign in, so it can tell 
 
 [Files]
 Source: "..\target\release\portlight.exe"; DestDir: "{app}"; Flags: ignoreversion
+; The background service for detailed monitoring. Copied to Program Files when
+; the person turns it on.
+Source: "..\target\release\portlight-service.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 
 [Icons]
@@ -71,6 +77,9 @@ Filename: "{app}\portlight.exe"; Parameters: "{param:launch|--background}"; Flag
 
 [UninstallRun]
 Filename: "{app}\portlight.exe"; Parameters: "--quit"; Flags: runhidden waituntilterminated; RunOnceId: "QuitPortlight"
+; Removing the service needs administrator rights, so this asks once, and only
+; if the service was turned on.
+Filename: "{app}\portlight-service.exe"; Parameters: "uninstall"; Verb: "runas"; Flags: shellexec runhidden waituntilterminated; RunOnceId: "RemoveCollector"; Check: CollectorInstalled
 
 [Code]
 // Portlight draws its window with Microsoft's WebView2, which ships with
@@ -94,6 +103,12 @@ begin
       'You can get it free from Microsoft:' + #13#10 +
       'https://developer.microsoft.com/microsoft-edge/webview2/' + #13#10 + #13#10 +
       'Install Portlight anyway?', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
+end;
+
+// True when the Portlight Collector service has been turned on.
+function CollectorInstalled: Boolean;
+begin
+  Result := RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\PortlightCollector');
 end;
 
 // Ask a running Portlight to close before its files are replaced.

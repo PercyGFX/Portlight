@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { backend } from "../lib/backend";
-import type { AppView, ConnView, FlowEvent, Snapshot } from "../lib/types";
+import type { AppView, ConnView, FlowEvent, Snapshot, Source } from "../lib/types";
 
 const MAX_EVENTS = 300;
 
@@ -10,6 +10,8 @@ export interface Monitor {
   ready: boolean;
   now: number;
   learningSecondsLeft: number;
+  /** Basic or detailed monitoring; null until the first snapshot. */
+  source: Source | null;
   apps: AppView[];
   connections: ConnView[];
   /** Newest first. */
@@ -24,6 +26,7 @@ interface State {
   ready: boolean;
   now: number;
   learningSecondsLeft: number;
+  source: Source | null;
   apps: AppView[];
   connections: ConnView[];
   events: FlowEvent[];
@@ -34,6 +37,7 @@ const EMPTY: State = {
   ready: false,
   now: Date.now(),
   learningSecondsLeft: 0,
+  source: null,
   apps: [],
   connections: [],
   events: [],
@@ -62,6 +66,7 @@ function merge(prev: State, snapshot: Snapshot): State {
     ready: true,
     now: snapshot.now,
     learningSecondsLeft: snapshot.learningSecondsLeft,
+    source: snapshot.source,
     apps: snapshot.apps,
     connections: snapshot.connections,
     events,

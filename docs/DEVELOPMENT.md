@@ -33,7 +33,9 @@ The first build compiles a few hundred Rust crates and takes several minutes. La
 | `npm run dev` | Only the UI, in a browser at http://localhost:1420, with demo data |
 | `cargo test --workspace` | All Rust tests |
 | `cargo test -p portlight-core` | Only the core rules; runs in a second |
-| `cargo run -p portlight-cli` | The live feed in a console (add `-- --seconds 10` to stop by itself) |
+| `cargo run -p portlight-cli` | The basic live feed in a console (add `-- --seconds 10` to stop by itself) |
+| `cargo test -p portlight-packets` | Only the packet reader and display filters |
+| `target\debug\portlight-service.exe console` | The collector's event feed in a console. Run from an administrator prompt |
 | `npm run build` | Type-check and build the UI |
 | `npm run tauri -- build --no-bundle` | The release exe at `target\release\portlight.exe` |
 | `installer\build.ps1` | Tests, release exe and installer in `installer\Output` |
@@ -46,6 +48,14 @@ The first build compiles a few hundred Rust crates and takes several minutes. La
 
 Put the rule in `crates/core` and write its test first, using the fake system at the bottom of `tracker.rs`. If a rule needs the time, take it as a parameter.
 
+### Working on detailed monitoring
+
+`npm run tauri dev` builds the whole workspace, so `target\debug\portlight-service.exe` sits next to the app and **Turn on detailed monitoring** installs that build (one prompt). After changing the collector, choose **Update the background service**, or run `portlight-service.exe install` again from an administrator prompt. To see raw readings without the window, stop the service (`sc stop PortlightCollector`) and run `portlight-service.exe console` as administrator.
+
+### Working on packet capture
+
+Install [Npcap](https://npcap.com/#download) with its default options. In a browser, `npm run dev` plays an invented capture (`src/lib/demoCapture.ts`), which is how the capture page is developed and screenshotted.
+
 ### Where Portlight keeps its files
 
 `%APPDATA%\com.portlight.app\known-apps.json` and `settings.json`. Delete `known-apps.json` to see the first-run learning period again.
@@ -53,7 +63,9 @@ Put the rule in `crates/core` and write its test first, using the fake system at
 ## Conventions
 
 - **Layers.** Read [ARCHITECTURE.md](ARCHITECTURE.md) before adding a file, and put code in the lowest layer that can hold it.
-- **Types cross the Rust and TypeScript boundary by hand.** When you change `crates/core/src/model.rs` or `UpdateStatus`, change `src/lib/types.ts` in the same commit.
+- **Types cross the Rust and TypeScript boundary by hand.** When you change `crates/core/src/model.rs`, `UpdateStatus`, `CollectorStatus` (`src-tauri/src/collector.rs`), the capture shapes (`src-tauri/src/capture.rs`) or `Summary` / `Layer` / `Field` (`crates/packets`), change `src/lib/types.ts` in the same commit.
+- **The collector's messages** (`crates/core/src/wire.rs`) are read by windows of other versions. Change them only together with `wire::PROTOCOL`.
+- **iPhone-simple.** Every feature gets a one-click path first. Technical options go behind "More options".
 - **Colours and sizes** go in `src/styles/tokens.css`, for both themes. No colour values in components.
 - **Words on screen** are for people new to networking. Prefer "secure web traffic" to "TLS over TCP 443".
 - **Unsafe Rust** stays inside `crates/platform`, each block with a `SAFETY` comment.
@@ -63,7 +75,7 @@ Put the rule in `crates/core` and write its test first, using the fake system at
 Both live in `.github/workflows`.
 
 - **CI** (`ci.yml`) runs on every push to `main` and every pull request: installs web dependencies, builds the UI, builds the Rust workspace, runs the tests.
-- **Release** (`release.yml`) runs when a tag starting with `v` is pushed: tests, builds the exe, builds the installer, and publishes a GitHub Release with the installer attached and the notes taken from `CHANGELOG.md`.
+- **Release** (`release.yml`) runs when a tag starting with `v` is pushed: tests, builds the exe and the collector service (`portlight-service.exe`), builds the installer, and publishes a GitHub Release with the installer attached and the notes taken from `CHANGELOG.md`.
 
 ## Cutting a release
 
@@ -72,11 +84,11 @@ Both live in `.github/workflows`.
 3. Commit, then tag and push:
 
    ```powershell
-   git tag v0.2.0
-   git push origin main v0.2.0
+   git tag v0.3.0
+   git push origin main v0.3.0
    ```
 
-4. The pipeline publishes `Portlight-Setup-0.2.0.exe`. Installed copies find it within 12 hours and update themselves.
+4. The pipeline publishes `Portlight-Setup-0.3.0.exe`. Installed copies find it within 12 hours and update themselves.
 
 The tag must match the version in `Cargo.toml`; the pipeline checks.
 
@@ -95,3 +107,4 @@ Only a copy installed in `%LOCALAPPDATA%\Programs\Portlight` updates itself, so 
 
 - **Code signing.** The exe and installer are unsigned, so SmartScreen warns on first run. Signing needs a certificate; the pipeline has no signing step yet.
 - **Front-end tests.** The UI is checked by the TypeScript compiler only.
+- **Automated tests of the live parts.** The event session, the service install and Npcap capture need administrator rights or a driver, so they are tried by hand (see "Working on detailed monitoring" and "Working on packet capture"). Their logic is tested through the core (`flows.rs`) and `capture.rs` with built frames.

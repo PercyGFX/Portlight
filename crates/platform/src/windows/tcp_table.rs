@@ -1,14 +1,15 @@
-//! Reads the Windows TCP connection table, which lists the owning process ID
-//! for every connection.
+//! Reads the Windows TCP and UDP tables, which list the owning process ID
+//! for every TCP connection and every open UDP port.
 
 use std::ffi::c_void;
 use std::io;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 
-use portlight_core::Connection;
+use portlight_core::{Connection, Protocol};
 use windows::Win32::Foundation::{ERROR_INSUFFICIENT_BUFFER, NO_ERROR};
 use windows::Win32::NetworkManagement::IpHelper::{
-    GetExtendedTcpTable, MIB_TCP6ROW_OWNER_PID, MIB_TCPROW_OWNER_PID, TCP_TABLE_OWNER_PID_ALL,
+    GetExtendedTcpTable, GetExtendedUdpTable, MIB_TCP6ROW_OWNER_PID, MIB_TCPROW_OWNER_PID, MIB_UDP6ROW_OWNER_PID,
+    MIB_UDPROW_OWNER_PID, TCP_TABLE_OWNER_PID_ALL, UDP_TABLE_OWNER_PID,
 };
 use windows::Win32::Networking::WinSock::{AF_INET, AF_INET6};
 
@@ -18,49 +19,66 @@ const TCP_STATE_LISTEN: u32 = 2;
 /// Every open TCP connection (IPv4 and IPv6), without listening sockets.
 pub fn connections() -> io::Result<Vec<Connection>> {
     let mut out = Vec::new();
+    let tcp = |pid, local, remote| Connection { pid, protocol: Protocol::Tcp, local, remote };
 
-    for_each_row::<MIB_TCPROW_OWNER_PID>(AF_INET.0 as u32, |row| {
+    for_each_row::<MIB_TCPROW_OWNER_PID>(Table::Tcp, AF_INET.0 as u32, |row| {
         if row.dwState != TCP_STATE_LISTEN {
-            out.push(Connection {
-                pid: row.dwOwningPid,
-                local: SocketAddr::new(v4(row.dwLocalAddr), port(row.dwLocalPort)),
-                remote: SocketAddr::new(v4(row.dwRemoteAddr), port(row.dwRemotePort)),
-            });
+            out.push(tcp(
+                row.dwOwningPid,
+                SocketAddr::new(v4(row.dwLocalAddr), port(row.dwLocalPort)),
+                SocketAddr::new(v4(row.dwRemoteAddr), port(row.dwRemotePort)),
+            ));
         }
     })?;
 
-    for_each_row::<MIB_TCP6ROW_OWNER_PID>(AF_INET6.0 as u32, |row| {
+    for_each_row::<MIB_TCP6ROW_OWNER_PID>(Table::Tcp, AF_INET6.0 as u32, |row| {
         if row.dwState != TCP_STATE_LISTEN {
-            out.push(Connection {
-                pid: row.dwOwningPid,
-                local: SocketAddr::new(v6(row.ucLocalAddr), port(row.dwLocalPort)),
-                remote: SocketAddr::new(v6(row.ucRemoteAddr), port(row.dwRemotePort)),
-            });
+            out.push(tcp(
+                row.dwOwningPid,
+                SocketAddr::new(v6(row.ucLocalAddr), port(row.dwLocalPort)),
+                SocketAddr::new(v6(row.ucRemoteAddr), port(row.dwRemotePort)),
+            ));
         }
     })?;
 
     Ok(out)
 }
 
+/// Every open UDP port and the process that owns it. UDP has no remote side
+/// here; this is used to tell which app a captured UDP packet belongs to.
+pub fn udp_ports() -> io::Result<Vec<(SocketAddr, u32)>> {
+    let mut out = Vec::new();
+    for_each_row::<MIB_UDPROW_OWNER_PID>(Table::Udp, AF_INET.0 as u32, |row| {
+        out.push((SocketAddr::new(v4(row.dwLocalAddr), port(row.dwLocalPort)), row.dwOwningPid));
+    })?;
+    for_each_row::<MIB_UDP6ROW_OWNER_PID>(Table::Udp, AF_INET6.0 as u32, |row| {
+        out.push((SocketAddr::new(v6(row.ucLocalAddr), port(row.dwLocalPort)), row.dwOwningPid));
+    })?;
+    Ok(out)
+}
+
+#[derive(Clone, Copy)]
+enum Table {
+    Tcp,
+    Udp,
+}
+
 /// Reads one address family's table and calls `f` for every row.
 ///
 /// Windows fills a buffer with a `u32` row count followed by the rows. The
 /// table can grow between the size query and the read, so retry a few times.
-fn for_each_row<Row: Copy>(family: u32, mut f: impl FnMut(Row)) -> io::Result<()> {
+fn for_each_row<Row: Copy>(table: Table, family: u32, mut f: impl FnMut(Row)) -> io::Result<()> {
     let mut size = 0u32;
     let mut buf: Vec<u8> = Vec::new();
 
     for _ in 0..5 {
+        let out = if buf.is_empty() { None } else { Some(buf.as_mut_ptr() as *mut c_void) };
         // SAFETY: `buf` is either empty (size query) or at least `size` bytes long.
         let code = unsafe {
-            GetExtendedTcpTable(
-                if buf.is_empty() { None } else { Some(buf.as_mut_ptr() as *mut c_void) },
-                &mut size,
-                false,
-                family,
-                TCP_TABLE_OWNER_PID_ALL,
-                0,
-            )
+            match table {
+                Table::Tcp => GetExtendedTcpTable(out, &mut size, false, family, TCP_TABLE_OWNER_PID_ALL, 0),
+                Table::Udp => GetExtendedUdpTable(out, &mut size, false, family, UDP_TABLE_OWNER_PID, 0),
+            }
         };
 
         if code == NO_ERROR.0 {

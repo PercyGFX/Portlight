@@ -1,14 +1,21 @@
 //! Windows data sources.
 //!
-//! Connections come from snapshots of the TCP connection table, which needs
-//! no administrator rights and no driver. Very short connections can fall
-//! between two snapshots, and UDP is not covered; the planned event-based
-//! source (ETW) fixes both. See docs/PLAN.md.
+//! Without administrator rights, connections come from snapshots of the TCP
+//! table (`tcp_table`). The Portlight Collector service, which runs with
+//! them, reads Windows' live network events instead (`etw`) and passes them
+//! to the window over a named pipe (`pipe`). Packet capture goes through
+//! Npcap when it is installed (`npcap`).
 
-mod process;
+pub mod adapters;
+pub mod etw;
+pub mod npcap;
+pub mod pipe;
+pub mod process;
+pub mod service;
 mod tcp_table;
 
 use std::io;
+use std::net::SocketAddr;
 
 use portlight_core::{Connection, Platform, ProcessInfo};
 
@@ -24,4 +31,9 @@ impl Platform for WindowsPlatform {
         let display_name = process::display_name(&path);
         Some(ProcessInfo { path, display_name })
     }
+}
+
+/// Every open UDP port and the process that owns it.
+pub fn udp_ports() -> io::Result<Vec<(SocketAddr, u32)>> {
+    tcp_table::udp_ports()
 }

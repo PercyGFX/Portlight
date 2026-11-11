@@ -6,7 +6,7 @@
 
 <p align="center">
   See which apps on your PC are online, who they are talking to, and get told the first time a new app connects.<br>
-  A friendlier take on network monitoring: apps first, packets later. Written in Rust.
+  A friendlier take on network monitoring: apps first, packets when you want them. Written in Rust.
 </p>
 
 <p align="center">
@@ -44,6 +44,8 @@ Tools like Wireshark show you every packet and leave you to work out what it mea
 
 Portlight answers that first. It starts from apps ("Firefox has 4 connections to 3 servers"), describes what happens in plain words ("Started secure web traffic with github.com"), and tells you when a program you have never seen online before makes its first connection.
 
+When you do want packets, you don't pick a network card and type filters as you would in Wireshark. You click an app, a server or a connection, and Portlight captures just that and explains each packet in plain words.
+
 ## Features
 
 **See**
@@ -53,6 +55,15 @@ Portlight answers that first. It starts from apps ("Firefox has 4 connections to
 - **Per-app details**: where the program lives on disk, when Portlight first saw it, and every server it is connected to right now.
 - A **connection flow** table under the map: connections opening and closing as they happen, in plain words ("Started secure web traffic"), with the server and the kind of traffic.
 
+**Look closer**
+
+- **Detailed monitoring** (optional, one administrator prompt to turn on): every connection including very short ones, UDP, the data each app uses, and the real site names apps looked up.
+- **Packet capture** for one app, one server, one site, one connection or everything, with plain-English summaries, a layer-by-layer breakdown and the raw bytes.
+- **Search and filter** packets with plain words or Wireshark-style filters (`dns`, `tls`, `tcp.port == 443`).
+- **Save for Wireshark** (`.pcapng`), or export the list as CSV or the full breakdown as text or JSON (handy for reports, or for pasting into an AI chat). Save everything, only what your search shows, one packet or a range.
+- **Stop automatically** after a number of seconds, packets or megabytes.
+- **Export the live view**: apps, open connections and connection history as CSV.
+
 **Be told**
 
 - A Windows notification, and an alert in the window, the **first time an app goes online**. You decide whether to trust it.
@@ -61,7 +72,7 @@ Portlight answers that first. It starts from apps ("Firefox has 4 connections to
 **Around it**
 
 - Light and dark themes. Search with `Ctrl K`, pause with `Space`.
-- No administrator rights needed, and no driver.
+- No administrator rights needed for the basics, and no driver. Detailed monitoring and packet capture are opt-in.
 - Updates itself from GitHub Releases.
 - Everything stays on your PC. See [Your data](#your-data).
 
@@ -98,6 +109,11 @@ Portlight draws its window with Microsoft's WebView2, which is part of Windows 1
 | Find an app or a server | `Ctrl K`, then type |
 | Freeze the map and the table to read them | `Space`, or **Pause** |
 | Review new apps | Click the **new apps** button above the map |
+| Turn on detailed monitoring | **Turn on** in the note above the map (one Windows prompt) |
+| Capture an app's packets | Select the app, then **Capture this app's packets** |
+| Capture one server or connection | The capture buttons next to it in the details column |
+| Search or filter packets | Type in the box on the capture page; `Ctrl F` jumps there |
+| Save a capture for Wireshark | **Save** on the capture page |
 | Keep it running in the background | Close the window; Portlight stays in the tray |
 | Quit completely | Right-click the tray icon, then **Quit** |
 
@@ -109,9 +125,26 @@ After that, the first connection from an app Portlight has never seen raises a W
 
 An app is recognised by the location of its program file. An app that updates itself into a new folder can therefore alert again.
 
+## Detailed monitoring
+
+Windows only tells programs about every connection, with byte counts and the site names apps looked up, if they run with administrator rights. Rather than run the whole window that way, Portlight can install a small background service, **Portlight Collector**, which reads those events and passes them to the window over a private, local channel.
+
+- Turn it on from the note above the map. Windows asks once for permission.
+- It is copied to `C:\Program Files\Portlight` and starts with Windows. It only collects; all decisions are made in the window.
+- Turn it off from the version menu at the bottom of the sidebar (one more prompt), or uninstall Portlight, which removes it too.
+- If it is not running, Portlight goes back to basic monitoring by itself.
+
+## Packet capture
+
+Packet capture needs **[Npcap](https://npcap.com/#download)**, the free capture driver Wireshark also uses. Its licence doesn't allow Portlight to include it, so the capture page tells you if it's missing and links to it. Install it with the default options.
+
+Captures stay in memory until you save them or start another; they are limited to 200,000 packets or 512 MB. Encrypted traffic stays encrypted: you see who, when and how much, not what.
+
 ## Your data
 
 - Portlight keeps two small files in `%APPDATA%\com.portlight.app`: the list of apps it has seen (`known-apps.json`) and your settings (`settings.json`). Nothing else is stored, and no connection history is written to disk.
+- Captured packets are kept in memory only, and written to disk only when you save them.
+- The optional collector service writes problems (not your traffic) to `C:\ProgramData\Portlight\collector.log`.
 - It sends nothing about you or your connections anywhere.
 - It makes two kinds of request itself: **name lookups** to your usual DNS server, to turn server addresses into names, and an **update check** to GitHub twice a day.
 - The window is drawn by Microsoft's WebView2, which can contact Microsoft on its own account, as it does inside any app that uses it. You will see it in Portlight's list as "Microsoft Edge WebView2".
@@ -122,18 +155,14 @@ The installed app checks GitHub for a new release a couple of minutes after it s
 
 ## Uninstall
 
-**Settings > Apps > Installed apps > Portlight > Uninstall.** The uninstaller closes Portlight, removes it and its sign-in entry, and asks whether to delete the list of apps it has seen.
+**Settings > Apps > Installed apps > Portlight > Uninstall.** The uninstaller closes Portlight, removes it and its sign-in entry, removes the collector service if you turned it on (Windows asks for permission), and asks whether to delete the list of apps it has seen. Npcap, if you installed it, is a separate program with its own uninstaller.
 
 ## What it cannot do yet
 
-This is the first release. The honest limits:
-
-- **Very short connections can be missed.** Portlight reads the list of open connections twice a second, so one that opens and closes in between is not seen.
-- **TCP only.** UDP traffic (some games, calls, QUIC) is not shown.
-- **Windows system processes are grouped** under "Windows system services", because Windows hides their names from non-administrator programs.
-- **Server names come from reverse lookups**, so you often see a hosting company's name instead of the site you visited.
-- **No blocking and no packet capture yet.** Both are next on the [roadmap](docs/PLAN.md).
-- **It cannot see inside encrypted traffic.** No tool can: you see who, when and how many connections, not the contents.
+- **Basic monitoring has gaps.** Without the collector service, Portlight reads the list of open connections twice a second, so very short connections can be missed; it sees TCP only, has no byte counts, groups Windows system processes together, and names servers by reverse lookup. Turn on detailed monitoring to close all of these.
+- **Name lookups belong to Windows.** Windows makes DNS lookups on apps' behalf, so they appear under "Windows system services" rather than the app that asked.
+- **No blocking yet.** It is next on the [roadmap](docs/PLAN.md).
+- **It cannot see inside encrypted traffic.** No tool can: you see who, when and how much, not the contents.
 
 ## For developers
 
@@ -143,6 +172,7 @@ npm run tauri dev          # the desktop app, with live reload
 npm run dev                # just the UI in a browser, with demo data
 cargo test --workspace     # the tests
 cargo run -p portlight-cli # the live feed in a console, no window
+target\debug\portlight-service.exe console   # the collector's feed (admin prompt)
 installer\build.ps1        # release exe and installer
 ```
 

@@ -20,7 +20,7 @@ fn main() -> std::io::Result<()> {
 
     // `default()` has no learning period, so new apps are flagged right away.
     let mut tracker = Tracker::new(KnownApps::default());
-    tracker.update(&platform, now_ms())?;
+    tracker.poll(&platform, now_ms())?;
     tracker.trust_all();
 
     let start = tracker.snapshot(now_ms(), 0);
@@ -37,7 +37,7 @@ fn main() -> std::io::Result<()> {
         }
         sleep(POLL_EVERY);
 
-        let update = tracker.update(&platform, now_ms())?;
+        let update = tracker.poll(&platform, now_ms())?;
         for app in &update.new_apps {
             println!("! NEW APP ONLINE: {}", app.name);
         }

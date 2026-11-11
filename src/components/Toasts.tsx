@@ -53,7 +53,7 @@ export function Toasts({ ready, newApps, onSelect }: Props) {
           >
             <span className="toast-title">New app online</span>
             <strong>{app.name}</strong>
-            <span>Just connected to the internet for the first time. Click to look.</span>
+            <span>First time online. Click to look.</span>
           </button>
           <button className="button button-icon button-quiet" aria-label="Dismiss" onClick={() => dismiss(app.id)}>
             <CloseIcon />

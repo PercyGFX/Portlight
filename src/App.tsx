@@ -1,26 +1,46 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppList } from "./components/AppList";
+import { CapturePage } from "./components/capture/CapturePage";
+import { CollectorNotice } from "./components/CollectorNotice";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { FlowTable } from "./components/FlowTable";
 import { LiveMap } from "./components/LiveMap";
 import { Sidebar } from "./components/Sidebar";
 import { Toasts } from "./components/Toasts";
 import { Topbar } from "./components/Topbar";
+import { useCapture } from "./hooks/useCapture";
+import { useCollector } from "./hooks/useCollector";
 import { useHotkeys } from "./hooks/useHotkeys";
 import { useMonitor } from "./hooks/useMonitor";
 import { useTheme } from "./hooks/useTheme";
 import { useUpdates } from "./hooks/useUpdates";
 import { backend } from "./lib/backend";
 import { countdown } from "./lib/format";
-import type { FlowEvent } from "./lib/types";
+import { EVERYTHING } from "./lib/targets";
+import type { CaptureTarget, FlowEvent } from "./lib/types";
 
-// Page layout: a sidebar of apps, a middle stage with the map above the
-// connection flow, and a details column on the right.
+type View = "monitor" | "capture";
+
+/** How long the old page takes to step out before the new one steps in. */
+const LEAVE_MS = 170;
+
+// Two pages: the live view (a sidebar of apps, a middle stage with the map above
+// the connection flow, and a details column on the right) and the packet capture
+// page, which replaces the whole window while it is open.
 export default function App() {
   const monitor = useMonitor();
   const [theme, setTheme] = useTheme();
   const updates = useUpdates();
+  const collector = useCollector();
+  const capture = useCapture();
+  const [view, setView] = useState<View>("monitor");
+  const [leaving, setLeaving] = useState(false);
+  // False until the first page change, so the window does not animate on start-up.
+  const [moved, setMoved] = useState(false);
+  const [captureTarget, setCaptureTarget] = useState<CaptureTarget>(EVERYTHING);
+  // Set when an entry point (an app, a server, a connection) should start recording at once.
+  const [autoStart, setAutoStart] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   // While paused, the flow table shows the events as they were at that moment.
@@ -28,6 +48,43 @@ export default function App() {
   // Events up to this sequence number were cleared from the table.
   const [clearedUpTo, setClearedUpTo] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
+  const leaveTimer = useRef(0);
+
+  useEffect(() => () => window.clearTimeout(leaveTimer.current), []);
+
+  const go = useCallback(
+    (next: View) => {
+      if (next === view || leaving) return;
+      setMoved(true);
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        setView(next);
+        return;
+      }
+      setLeaving(true);
+      leaveTimer.current = window.setTimeout(() => {
+        setView(next);
+        setLeaving(false);
+      }, LEAVE_MS);
+    },
+    [view, leaving],
+  );
+
+  /** Opens the capture page. With a target it starts recording straight away; without one it
+      offers "Everything" (or shows what is already recording) and waits for Start. */
+  const openCapture = useCallback(
+    (target?: CaptureTarget) => {
+      if (target) {
+        setCaptureTarget(target);
+        setAutoStart(true);
+      } else if (capture.status.state !== "running") {
+        setCaptureTarget(EVERYTHING);
+      }
+      go("capture");
+    },
+    [capture.status.state, go],
+  );
+
+  const clearAutoStart = useCallback(() => setAutoStart(false), []);
 
   const paused = frozen !== null;
   const togglePause = useCallback(() => {
@@ -35,9 +92,10 @@ export default function App() {
   }, [monitor.events]);
 
   useHotkeys({
-    onSearch: () => searchRef.current?.focus(),
-    onTogglePause: togglePause,
+    onSearch: () => view === "monitor" && searchRef.current?.focus(),
+    onTogglePause: () => view === "monitor" && togglePause(),
     onEscape: () => {
+      if (view !== "monitor") return;
       if (document.activeElement === searchRef.current && query) setQuery("");
       else setSelectedId(null);
     },
@@ -70,13 +128,33 @@ export default function App() {
     });
   }, [frozen, monitor.events, monitor.hosts, clearedUpTo, selectedId, needle]);
 
+  if (view === "capture") {
+    return (
+      <CapturePage
+        capture={capture}
+        target={captureTarget}
+        apps={monitor.apps}
+        connections={monitor.connections}
+        hosts={monitor.hosts}
+        leaving={leaving}
+        autoStart={autoStart}
+        onAutoStarted={clearAutoStart}
+        onTarget={setCaptureTarget}
+        onBack={() => go("monitor")}
+      />
+    );
+  }
+
   return (
-    <div className="shell">
+    <div className={`shell ${leaving ? "is-leaving" : moved ? "is-entering" : ""}`}>
       <Sidebar
         query={query}
         searchRef={searchRef}
         theme={theme}
         updates={updates}
+        collector={collector}
+        capture={capture.status}
+        onOpenCapture={() => openCapture()}
         onQuery={setQuery}
         onTheme={setTheme}
       >
@@ -91,10 +169,13 @@ export default function App() {
           paused={paused}
           newApps={newApps}
           demo={backend.demo}
+          source={monitor.source}
           onSelect={setSelectedId}
           onTrust={monitor.trustApp}
           onTrustAll={monitor.trustAll}
         />
+
+        <CollectorNotice collector={collector} source={monitor.source} />
 
         {monitor.learningSecondsLeft > 0 && (
           <p className="banner" role="status">
@@ -112,6 +193,7 @@ export default function App() {
           selectedId={selectedId}
           paused={paused}
           onSelect={setSelectedId}
+          onCapture={openCapture}
         />
 
         <FlowTable
@@ -131,8 +213,10 @@ export default function App() {
         connections={monitor.connections}
         hosts={monitor.hosts}
         now={monitor.now}
+        source={monitor.source}
         onTrust={monitor.trustApp}
         onBack={() => setSelectedId(null)}
+        onCapture={openCapture}
       />
 
       <Toasts ready={monitor.ready} newApps={newApps} onSelect={setSelectedId} />

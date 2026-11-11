@@ -83,6 +83,66 @@ export const BackIcon = () => (
   </Icon>
 );
 
+/** A recording dot: "capture packets". */
+export const RecordIcon = () => (
+  <Icon>
+    <circle cx="8" cy="8" r="5.5" />
+    <circle cx="8" cy="8" r="2.4" fill="currentColor" stroke="none" />
+  </Icon>
+);
+
+export const StopIcon = () => (
+  <Icon>
+    <rect x="3.5" y="3.5" width="9" height="9" rx="1.6" fill="currentColor" />
+  </Icon>
+);
+
+export const ChevronDownIcon = () => (
+  <Icon>
+    <path d="m4 6 4 4 4-4" />
+  </Icon>
+);
+
+export const ChevronRightIcon = () => (
+  <Icon>
+    <path d="m6 4 4 4-4 4" />
+  </Icon>
+);
+
+export const SaveIcon = () => (
+  <Icon>
+    <path d="M8 2.5v7.5M4.8 7 8 10.2 11.2 7M3 12.8h10" />
+  </Icon>
+);
+
+export const HelpIcon = () => (
+  <Icon>
+    <circle cx="8" cy="8" r="6" />
+    <path d="M6.3 6.3a1.8 1.8 0 1 1 2.4 1.7c-.5.2-.7.6-.7 1.1v.3" />
+    <circle cx="8" cy="11.6" r=".5" fill="currentColor" />
+  </Icon>
+);
+
+export const LockIcon = () => (
+  <Icon>
+    <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" />
+    <path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7" />
+  </Icon>
+);
+
+export const CopyIcon = () => (
+  <Icon>
+    <rect x="5.5" y="5.5" width="7.5" height="7.5" rx="1.5" />
+    <path d="M10.5 3.6V3.5A1.5 1.5 0 0 0 9 2H4.5A1.5 1.5 0 0 0 3 3.5V8a1.5 1.5 0 0 0 1.5 1.5h.1" />
+  </Icon>
+);
+
+export const DownIcon = () => (
+  <Icon>
+    <path d="M8 3v10M4 9l4 4 4-4" />
+  </Icon>
+);
+
 /** The Portlight mark: a ship's porthole with one light on the water line. */
 export function Logo() {
   return (

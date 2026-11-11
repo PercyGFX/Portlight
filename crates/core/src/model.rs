@@ -1,15 +1,27 @@
 //! Data types shared by the core and its front-ends.
 
 use std::io;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-/// One TCP connection and the process that owns it, as the OS reports it.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Protocol {
+    Tcp,
+    Udp,
+}
+
+/// One connection and the process that owns it, as the OS reports it.
+///
+/// UDP has no connections, so a UDP "connection" is one app talking to one
+/// remote address and port. Its local port is always 0, because apps often
+/// use a new local port for every message (name lookups do).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Connection {
     pub pid: u32,
+    pub protocol: Protocol,
     pub local: SocketAddr,
     pub remote: SocketAddr,
 }
@@ -33,6 +45,66 @@ pub trait Platform {
     fn process_info(&self, pid: u32) -> Option<ProcessInfo>;
 }
 
+/// Where the tracker's picture comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Source {
+    /// Snapshots of the TCP table: TCP only, no byte counts, may miss short connections.
+    #[default]
+    Basic,
+    /// Live network events from the Portlight Collector service.
+    Detailed,
+}
+
+/// A connection as a data source reports it, with the data it has carried so far.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Observed {
+    #[serde(flatten)]
+    pub conn: Connection,
+    /// Bytes sent since the source first saw this connection.
+    pub sent: u64,
+    /// Bytes received since the source first saw this connection.
+    pub received: u64,
+}
+
+impl Observed {
+    /// A connection with no byte counts, as the TCP table reports it.
+    pub fn bare(conn: Connection) -> Self {
+        Self { conn, sent: 0, received: 0 }
+    }
+}
+
+/// A program the collector looked up, sent along so the window needs no
+/// administrator rights to name it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProcessRecord {
+    pub pid: u32,
+    pub path: String,
+    pub name: Option<String>,
+}
+
+impl ProcessRecord {
+    pub fn info(&self) -> ProcessInfo {
+        ProcessInfo { path: PathBuf::from(&self.path), display_name: self.name.clone() }
+    }
+}
+
+/// One reading from a data source: what is open now and what ended since
+/// the last reading.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Observation {
+    pub source: Source,
+    /// Every connection open right now.
+    pub open: Vec<Observed>,
+    /// Connections that ended since the last reading, with their final byte
+    /// counts. Includes connections that opened and closed in between.
+    pub closed: Vec<Observed>,
+    /// Site names apps looked up, and the addresses they got back.
+    pub names: Vec<(IpAddr, String)>,
+    /// Programs behind the process IDs above, when the source knows them.
+    pub processes: Vec<ProcessRecord>,
+}
+
 /// An app that has been online during this session.
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -53,6 +125,10 @@ pub struct AppView {
     pub servers: u32,
     /// Connections opened since Portlight started.
     pub total_opened: u64,
+    /// Bytes sent this session, including connections already closed.
+    pub bytes_sent: u64,
+    /// Bytes received this session, including connections already closed.
+    pub bytes_received: u64,
 }
 
 /// A connection that is open right now.
@@ -62,12 +138,15 @@ pub struct ConnView {
     pub id: u64,
     pub app_id: String,
     pub pid: u32,
+    pub protocol: Protocol,
     pub remote_ip: String,
     pub remote_port: u16,
     pub local_port: u16,
-    /// Reverse-DNS name of the remote address, once known.
+    /// The site name the app looked up, or else the reverse-DNS name, once known.
     pub host: Option<String>,
     pub opened_at: u64,
+    pub bytes_sent: u64,
+    pub bytes_received: u64,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
@@ -87,9 +166,13 @@ pub struct FlowEvent {
     pub kind: EventKind,
     pub app_id: String,
     pub app_name: String,
+    pub protocol: Protocol,
     pub remote_ip: String,
     pub remote_port: u16,
     pub host: Option<String>,
+    /// For "closed" events, the connection's totals. Zero for "opened".
+    pub bytes_sent: u64,
+    pub bytes_received: u64,
 }
 
 /// An app that just went online for the first time.
@@ -104,6 +187,7 @@ pub struct NewApp {
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
     pub now: u64,
+    pub source: Source,
     /// Seconds left in the first-run learning period; 0 once alerts are live.
     pub learning_seconds_left: u32,
     pub apps: Vec<AppView>,

@@ -50,6 +50,9 @@ jobs:
       - name: Build the app
         run: npm run tauri -- build --no-bundle
 
+      - name: Build the background service
+        run: cargo build --release --locked -p portlight-collector
+
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
 

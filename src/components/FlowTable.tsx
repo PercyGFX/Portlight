@@ -1,8 +1,10 @@
 // Under the map: connections opening and closing, newest first, in plain words.
 
-import { clock, shorten } from "../lib/format";
+import { bytes, clock, shorten } from "../lib/format";
 import { describe, serviceOf } from "../lib/services";
 import type { FlowEvent } from "../lib/types";
+import { CopyButton } from "./CopyButton";
+import { ExportMenu } from "./ExportMenu";
 import { ClearIcon, PauseIcon, PlayIcon } from "./icons";
 
 interface Props {
@@ -33,6 +35,7 @@ export function FlowTable({ events, hosts, scope, paused, onTogglePause, onClear
           <button className="button" onClick={onClear} title="Clear the list">
             <ClearIcon /> Clear
           </button>
+          <ExportMenu />
         </div>
       </header>
 
@@ -51,6 +54,8 @@ export function FlowTable({ events, hosts, scope, paused, onTogglePause, onClear
             {events.map((event) => {
               const destination = hosts.get(event.remoteIp) ?? event.host ?? event.remoteIp;
               const sentence = describe(event);
+              const total = event.bytesSent + event.bytesReceived;
+              const label = event.protocol === "udp" && event.remotePort === 443 ? "QUIC" : serviceOf(event.remotePort).label;
               return (
                 <tr key={event.seq} className={`is-${event.kind}`}>
                   <td className="col-time">{clock(event.time)}</td>
@@ -59,9 +64,22 @@ export function FlowTable({ events, hosts, scope, paused, onTogglePause, onClear
                   </td>
                   <td className="col-what" title={sentence}>
                     <span className={`dot dot-${event.kind}`} /> {sentence}
+                    {event.kind === "closed" && total > 0 && (
+                      <span className="flow-bytes" title={`${bytes(event.bytesReceived)} down, ${bytes(event.bytesSent)} up`}>
+                        {" "}· {bytes(total)}
+                      </span>
+                    )}
                   </td>
-                  <td className="col-dest" title={`${destination} (${event.remoteIp}:${event.remotePort})`}>{destination}</td>
-                  <td className="col-port">{serviceOf(event.remotePort).label}</td>
+                  <td className="col-dest" title={`${destination} (${event.remoteIp}:${event.remotePort})`}>
+                    <span className="copyable has-copy">
+                      <span className="cell-ellipsis">{destination}</span>
+                      <CopyButton value={destination === event.remoteIp ? `${event.remoteIp}:${event.remotePort}` : destination} what="server" />
+                    </span>
+                  </td>
+                  <td className="col-port">
+                    {label}
+                    {event.protocol === "udp" && <span className="tag tag-udp">UDP</span>}
+                  </td>
                 </tr>
               );
             })}

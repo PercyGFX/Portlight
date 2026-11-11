@@ -54,6 +54,24 @@
   --iso-right: #9fc3c0;
   --iso-screen: #e2efec;
 
+  /* Packet families on the capture page: tags in the list and dots on the strip.
+     Kept apart from the three meaning colours above. */
+  --proto-web: #1d6fa0;
+  --proto-web-soft: #dfedf6;
+  --proto-names: #7c55ad;
+  --proto-names-soft: #eee6f7;
+  --proto-tcp: #3f7f74;
+  --proto-tcp-soft: #e0eeea;
+  --proto-udp: #7a7a1e;
+  --proto-udp-soft: #efefd6;
+  --proto-local: #b25a34;
+  --proto-local-soft: #f8e5db;
+  --proto-other: #6d7f81;
+  --proto-other-soft: #e8eded;
+  --red: #c23a2c;
+  --red-soft: #fbe3df;
+  --hex-lit: #f6dfa0;
+
   --shadow-panel: 0 1px 2px rgba(15, 60, 66, 0.06), 0 6px 20px rgba(15, 60, 66, 0.05);
   --shadow-pop: 0 14px 38px rgba(15, 60, 66, 0.2);
   color-scheme: light;
@@ -91,7 +109,31 @@
   --iso-right: #24555a;
   --iso-screen: #173437;
 
+  --proto-web: #6cb8ec;
+  --proto-web-soft: #15304a;
+  --proto-names: #bf9cf0;
+  --proto-names-soft: #2c2342;
+  --proto-tcp: #7fcdbd;
+  --proto-tcp-soft: #163a34;
+  --proto-udp: #d2d27a;
+  --proto-udp-soft: #33331a;
+  --proto-local: #f0a07a;
+  --proto-local-soft: #3d2519;
+  --proto-other: #9ab0b1;
+  --proto-other-soft: #1f3134;
+  --red: #ff8a7a;
+  --red-soft: #3f1d1a;
+  --hex-lit: #5a4614;
+
   --shadow-panel: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.22);
   --shadow-pop: 0 16px 42px rgba(0, 0, 0, 0.55);
   color-scheme: dark;
+}
+
+/* Narrow windows: slimmer side columns so the map keeps its room. */
+@media (max-width: 1240px) {
+  :root {
+    --sidebar-width: 232px;
+    --details-width: 272px;
+  }
 }

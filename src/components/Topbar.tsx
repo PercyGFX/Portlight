@@ -1,10 +1,10 @@
-// Strip above the map: live totals on the left, the new-app bell on the right.
+// Strip above the map: live totals and the monitoring mode on the left, the new-app bell on the right.
 
 import { useCallback, useRef, useState } from "react";
 
 import { useDismiss } from "../hooks/useDismiss";
 import { plural } from "../lib/format";
-import type { AppView } from "../lib/types";
+import type { AppView, Source } from "../lib/types";
 import { BellIcon, CheckIcon } from "./icons";
 
 interface Props {
@@ -14,18 +14,34 @@ interface Props {
   paused: boolean;
   newApps: AppView[];
   demo: boolean;
+  /** Null until the first snapshot. */
+  source: Source | null;
   onSelect(id: string): void;
   onTrust(id: string): void;
   onTrustAll(): void;
 }
 
-export function Topbar({ appsOnline, connections, servers, paused, newApps, demo, onSelect, onTrust, onTrustAll }: Props) {
+export function Topbar(props: Props) {
+  const { appsOnline, connections, servers, paused, newApps, demo, source, onSelect, onTrust, onTrustAll } = props;
   return (
     <header className="topbar">
       <span className={`pill pill-live ${paused ? "is-paused" : ""}`}>
         <span className="live-dot" />
         {paused ? "Paused" : "Live"}
       </span>
+      {source && (
+        <span
+          className={`pill pill-mode is-${source}`}
+          tabIndex={0}
+          title={
+            source === "detailed"
+              ? "Detailed monitoring: the Portlight background service sees every connection, including UDP and very short ones, and counts the data each app uses."
+              : "Basic monitoring: Portlight checks the list of open TCP connections twice a second. Very short connections and UDP are missed, and data used is not counted."
+          }
+        >
+          {source === "detailed" ? "Detailed" : "Basic"}
+        </span>
+      )}
 
       <dl className="totals">
         <div><dt>Apps online</dt><dd>{appsOnline}</dd></div>
@@ -82,6 +98,7 @@ function Alerts({ newApps, onSelect, onTrust, onTrustAll }: AlertsProps) {
               <li key={app.id}>
                 <button
                   className="link menu-app"
+                  title={app.path ?? undefined}
                   onClick={() => {
                     onSelect(app.id);
                     setOpen(false);

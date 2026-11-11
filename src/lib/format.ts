@@ -32,3 +32,34 @@ export function shorten(text: string, max: number): string {
 export function countdown(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${pad(seconds % 60)}`;
 }
+
+/** 1234567 -> "1.2 MB". Decimal units, like Wireshark. */
+export function bytes(count: number): string {
+  if (count < 1000) return `${Math.round(count)} B`;
+  const units = ["kB", "MB", "GB", "TB"];
+  let value = count / 1000;
+  let unit = 0;
+  while (value >= 1000 && unit < units.length - 1) {
+    value /= 1000;
+    unit += 1;
+  }
+  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
+}
+
+/** Bytes per second, e.g. "320 kB/s". */
+export function rate(perSecond: number): string {
+  return `${bytes(perSecond)}/s`;
+}
+
+/** 1234 -> "1,234" */
+export function count(n: number): string {
+  return Math.round(n).toLocaleString("en-US");
+}
+
+/** Seconds to "0:42" or "1:02:03". */
+export function elapsed(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(s / 3600);
+  const minutes = Math.floor((s % 3600) / 60);
+  return hours ? `${hours}:${pad(minutes)}:${pad(s % 60)}` : `${minutes}:${pad(s % 60)}`;
+}

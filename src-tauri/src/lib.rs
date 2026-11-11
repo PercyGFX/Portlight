@@ -7,16 +7,22 @@
 //! - `--open` starts with the window showing, which is also the default.
 //! - `--quit` asks a running Portlight to exit (used by the installer).
 
+mod capture;
+mod collector;
 mod commands;
 mod dns;
+mod export;
 mod monitor;
 mod settings;
 mod state;
 mod tray;
 mod update;
 
+use std::sync::Arc;
+
 use tauri::{AppHandle, Manager, WindowEvent};
 
+use crate::capture::Capture;
 use crate::state::AppState;
 
 const MAIN_WINDOW: &str = "main";
@@ -37,6 +43,7 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::get_snapshot,
             commands::trust_app,
@@ -45,6 +52,22 @@ pub fn run() {
             commands::set_auto_update,
             commands::check_for_update,
             commands::install_update,
+            commands::collector_status,
+            commands::install_collector,
+            commands::uninstall_collector,
+            commands::capture_support,
+            commands::capture_start,
+            commands::capture_stop,
+            commands::capture_clear,
+            commands::capture_status,
+            commands::capture_set_filter,
+            commands::capture_rows,
+            commands::capture_packet,
+            commands::capture_save,
+            commands::capture_export_csv,
+            commands::capture_export,
+            commands::export_live,
+            commands::open_npcap_download,
         ])
         .setup(move |app| {
             if wants_quit {
@@ -55,6 +78,7 @@ pub fn run() {
 
             let data_dir = app.path().app_data_dir()?;
             app.manage(AppState::load(&data_dir));
+            app.manage(Arc::new(Capture::default()));
 
             tray::create(app.handle())?;
             monitor::spawn(app.handle().clone());

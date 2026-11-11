@@ -1,11 +1,14 @@
-// Left rail: the name, search, the app list (passed in), and at the bottom
-// the version menu and the theme switch.
+// Left rail: the name, search, the app list (passed in), the way into packet
+// capture, and at the bottom the version menu and the theme switch.
 
 import type { ReactNode, RefObject } from "react";
 
+import type { Collector } from "../hooks/useCollector";
 import type { Theme } from "../hooks/useTheme";
 import type { Updates } from "../hooks/useUpdates";
-import { Logo, MoonIcon, SearchIcon, SunIcon } from "./icons";
+import { count } from "../lib/format";
+import type { CaptureStatus } from "../lib/types";
+import { Logo, MoonIcon, RecordIcon, SearchIcon, SunIcon } from "./icons";
 import { UpdateMenu } from "./UpdateMenu";
 
 interface Props {
@@ -13,12 +16,15 @@ interface Props {
   searchRef: RefObject<HTMLInputElement | null>;
   theme: Theme;
   updates: Updates;
+  collector: Collector;
+  capture: CaptureStatus;
+  onOpenCapture(): void;
   onQuery(query: string): void;
   onTheme(theme: Theme): void;
   children: ReactNode;
 }
 
-export function Sidebar({ query, searchRef, theme, updates, onQuery, onTheme, children }: Props) {
+export function Sidebar({ query, searchRef, theme, updates, collector, capture, onOpenCapture, onQuery, onTheme, children }: Props) {
   const next: Theme = theme === "dark" ? "light" : "dark";
 
   return (
@@ -46,8 +52,19 @@ export function Sidebar({ query, searchRef, theme, updates, onQuery, onTheme, ch
 
       {children}
 
+      {capture.state === "running" ? (
+        <button className="pill pill-recording capture-entry" onClick={onOpenCapture} title="Back to the packet capture">
+          <span className="live-dot" />
+          Recording · {count(capture.packets)} {capture.packets === 1 ? "packet" : "packets"}
+        </button>
+      ) : (
+        <button className="button capture-entry" onClick={onOpenCapture} title="Record the packets on this PC's network, like Wireshark">
+          <RecordIcon /> Capture packets
+        </button>
+      )}
+
       <footer className="sidebar-foot">
-        <UpdateMenu updates={updates} />
+        <UpdateMenu updates={updates} collector={collector} />
         <button className="button button-icon" aria-label={`Switch to ${next} mode`} title={`Switch to ${next} mode`} onClick={() => onTheme(next)}>
           {theme === "dark" ? <SunIcon /> : <MoonIcon />}
         </button>

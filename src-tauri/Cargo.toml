@@ -19,10 +19,12 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 portlight-core.workspace = true
 portlight-platform.workspace = true
+portlight-packets.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-notification = "2"
+tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"
 dns-lookup = "3"
 sha2 = "0.10"

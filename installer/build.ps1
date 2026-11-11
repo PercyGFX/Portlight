@@ -17,6 +17,9 @@ if ($LASTEXITCODE -ne 0) { throw "Tests failed" }
 # Builds the web UI, then the exe with the UI inside it.
 npm run tauri -- build --no-bundle
 if ($LASTEXITCODE -ne 0) { throw "Build failed" }
+# The background service for detailed monitoring.
+cargo build --release -p portlight-collector
+if ($LASTEXITCODE -ne 0) { throw "Service build failed" }
 
 $iscc = @(
     "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",

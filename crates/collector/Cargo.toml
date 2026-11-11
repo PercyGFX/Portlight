@@ -1,0 +1,18 @@
+[package]
+name = "portlight-collector"
+description = "Portlight's background service: reads Windows network events and hands them to the Portlight window."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "portlight-service"
+path = "src/main.rs"
+
+[dependencies]
+portlight-core.workspace = true
+portlight-platform.workspace = true
+serde_json.workspace = true
+windows-service = "0.8"

@@ -3,6 +3,45 @@
 All notable changes to Portlight are listed here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-11-12
+
+Detailed monitoring and packet capture.
+
+### Added
+
+- **Detailed monitoring**, through a small background service, Portlight
+  Collector, that you turn on from inside the app with one administrator
+  prompt. With it on, Portlight sees:
+  - every connection, including ones that last only milliseconds;
+  - UDP traffic (QUIC, games, calls, name lookups);
+  - how much data each app and each connection sends and receives;
+  - the site names apps actually looked up ("github.com"), instead of a
+    hosting company's server name;
+  - the names of Windows system processes.
+  Without it, Portlight works as before.
+- **Packet capture** on its own page. Capture one app, one server, one site,
+  one connection or everything, then read each packet as a plain-English
+  summary or a Wireshark-style line, with a layer-by-layer breakdown and the
+  raw bytes. Uses Npcap, the capture driver Wireshark uses; Portlight tells
+  you how to get it if it is missing.
+- **Search and filter** captured packets: type plain words, or use
+  Wireshark-style filters such as `dns`, `tls`, `tcp.port == 443`.
+- **Save captures** as `.pcapng` files that Wireshark opens (each packet
+  notes which app it came from), export the list as CSV, or export the full
+  breakdown as text or JSON. Save everything, only what your search shows,
+  one packet or a range.
+- **Stop a capture automatically** after a number of seconds, packets or
+  megabytes.
+- **Export the live view** (apps, open connections, connection history) as CSV.
+- **Copy buttons** for paths, addresses, packet fields and bytes.
+
+### Changed
+
+- When several apps go online at once, Windows shows one notification
+  instead of one per app.
+- The new-apps menu scrolls when the list is long, instead of running off
+  the window.
+
 ## [0.2.0] - 2026-11-11
 
 A new look of Portlight's own.
