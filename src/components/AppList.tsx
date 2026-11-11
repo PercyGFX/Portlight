@@ -1,4 +1,4 @@
-// Left panel: every app seen online, busiest first.
+// The app list in the sidebar: every app seen online, busiest first.
 
 import { useState } from "react";
 
@@ -30,9 +30,7 @@ export function AppList({ apps, selectedId, filtered, onSelect }: Props) {
   ];
 
   return (
-    <section className="panel list-panel" aria-label="Apps">
-      <h2 className="panel-title">Apps</h2>
-
+    <section className="app-section" aria-label="Apps">
       <div className="tabs" role="tablist">
         {tabs.map(([id, label, count]) => (
           <button
@@ -55,10 +53,12 @@ export function AppList({ apps, selectedId, filtered, onSelect }: Props) {
               aria-pressed={app.id === selectedId}
               onClick={() => onSelect(app.id === selectedId ? null : app.id)}
             >
-              <span className={`status-dot ${app.connections > 0 ? "is-online" : ""}`} />
+              <span className={`avatar ${app.connections > 0 ? "is-online" : ""}`} aria-hidden="true">
+                {app.name.charAt(0).toUpperCase()}
+              </span>
               <span className="app-row-text">
                 <span className="app-row-name">
-                  {app.name}
+                  <span>{app.name}</span>
                   {!app.trusted && <span className="tag tag-new">New</span>}
                 </span>
                 <span className="app-row-sub">
@@ -66,16 +66,20 @@ export function AppList({ apps, selectedId, filtered, onSelect }: Props) {
                     ? `${plural(app.connections, "connection")} · ${plural(app.servers, "server")}`
                     : "Not connected right now"}
                 </span>
-              </span>
-              <span className="meter" aria-hidden="true">
-                <i style={{ width: `${(app.connections / busiest) * 100}%` }} />
+                <span className="meter">
+                  <i style={{ width: `${(app.connections / busiest) * 100}%` }} />
+                </span>
               </span>
             </button>
           </li>
         ))}
         {shown.length === 0 && (
           <li className="empty">
-            {filtered ? "No app matches your search." : tab === "new" ? "No new apps. You will be told when one goes online." : "No apps yet."}
+            {filtered
+              ? "No app matches your search."
+              : tab === "new"
+                ? "No new apps. You will be told when one goes online."
+                : "No apps yet."}
           </li>
         )}
       </ul>

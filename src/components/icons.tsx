@@ -12,7 +12,8 @@ function Icon({ children, size = 14 }: { children: ReactNode; size?: number }) {
       fill="none"
       stroke="currentColor"
       strokeWidth="1.5"
-      strokeLinecap="square"
+      strokeLinecap="round"
+      strokeLinejoin="round"
       aria-hidden="true"
     >
       {children}
@@ -86,7 +87,7 @@ export const BackIcon = () => (
 export function Logo() {
   return (
     <svg className="logo" width="44" height="44" viewBox="0 0 44 44" fill="none" aria-hidden="true">
-      <rect className="logo-plate" x="2" y="2" width="40" height="40" />
+      <circle className="logo-plate" cx="22" cy="22" r="20.5" />
       <circle className="logo-ring" cx="22" cy="22" r="12.5" />
       <circle className="logo-glass" cx="22" cy="22" r="8" />
       <path className="logo-wave" d="M14.6 24.4c2.4-2.2 4.9-2.2 7.4 0s5 2.2 7.4 0" />

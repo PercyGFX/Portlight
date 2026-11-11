@@ -2,7 +2,7 @@
 
 What Portlight is for, what exists today, what comes next, and the decisions made along the way. Update this file when a milestone lands or a decision changes.
 
-Last updated: 11 November 2026, version 0.1.0.
+Last updated: 11 November 2026, version 0.2.0.
 
 ## The idea
 
@@ -27,9 +27,10 @@ One limit applies to every tool of this kind: most traffic is encrypted (HTTPS),
 | Installer | Inno Setup, per user, no administrator prompt | Same approach as SpeedMeter |
 | Updates | Self-update from GitHub Releases, checked against GitHub's SHA-256 | Same flow as SpeedMeter |
 | First data source | Snapshots of the TCP connection table | Needs no administrator rights and no driver, so the first release installs and runs for anyone |
+| Look | Sea-teal and brass, Manrope and JetBrains Mono, sidebar layout, sonar-ring map | The first version looked too close to the project that inspired it (Protocol Explorer). Version 0.2.0 keeps the idea of an isometric live map and gives Portlight its own identity |
 | Name | Portlight | A portlight is the small window in a ship's hull: a window onto your network ports |
 
-## What is built (0.1.0)
+## What is built (0.1.0 and 0.2.0)
 
 - **Live app list.** Every app with an open connection, named from the program's version details, busiest first.
 - **Live map.** Apps, this PC, the internet and servers, with a dot travelling along the lanes when a connection opens or closes.
@@ -43,7 +44,7 @@ One limit applies to every tool of this kind: most traffic is encrypted (HTTPS),
 - **Installer, self-updater, CI and release pipelines.**
 - **Tests** for the core rules (new-app detection, learning, event diffing, process-ID reuse).
 
-## Known limits of 0.1.0
+## Known limits today
 
 | Limit | Cause | Fixed by |
 |---|---|---|

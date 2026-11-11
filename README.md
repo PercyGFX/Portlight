@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/live-light.png" width="900" alt="Portlight's main window: a list of apps on the left, a live map of apps, this PC, the internet and servers in the middle, an overview on the right, and a table of connections opening and closing at the bottom">
+  <img src="docs/screenshots/live-light.png" width="900" alt="Portlight's main window in the light theme: a sidebar listing apps, a live map of apps, this PC, the internet and servers drawn over sonar rings, a table of connections opening and closing under the map, and an overview column on the right">
 </p>
 
 ---
@@ -51,7 +51,7 @@ Portlight answers that first. It starts from apps ("Firefox has 4 connections to
 - Every app with an open internet connection, by its real name ("Visual Studio Code", not `Code.exe`), busiest first.
 - A **live map**: your apps, this PC, the internet, and the servers on the other end. A dot travels along the lanes whenever a connection opens or closes.
 - **Per-app details**: where the program lives on disk, when Portlight first saw it, and every server it is connected to right now.
-- A **connection flow** table: connections opening and closing as they happen, in plain words, with the kind of traffic (HTTPS, DNS, mail and so on).
+- A **connection flow** table under the map: connections opening and closing as they happen, in plain words ("Started secure web traffic"), with the server and the kind of traffic.
 
 **Be told**
 
@@ -69,14 +69,14 @@ Portlight answers that first. It starts from apps ("Firefox has 4 connections to
 
 The screenshots use the app's built-in demo data, so no real connections are shown.
 
-<p align="center"><img src="docs/screenshots/app-dark.png" alt="Dark theme with Firefox selected: its lane on the map is highlighted, the other apps are dimmed, and the right panel lists the servers Firefox is connected to"></p>
+<p align="center"><img src="docs/screenshots/app-dark.png" alt="Dark theme with Firefox selected: its lane on the map is highlighted, the other apps are dimmed, and the right column lists the servers Firefox is connected to"></p>
 <p align="center"><sub>Pick an app and the map narrows to it: the servers it is talking to, and only its connections in the table below.</sub></p>
 
-<p align="center"><img src="docs/screenshots/new-app-light.png" alt="A new app called Photo Sync Helper is selected. The right panel says this is the first time Portlight has seen it online and offers a Mark as trusted button"></p>
+<p align="center"><img src="docs/screenshots/new-app-light.png" alt="A new app called Photo Sync Helper is selected and marked in brass. The right column says this is the first time Portlight has seen it online and offers a Mark as trusted button"></p>
 <p align="center"><sub>A new app: where it runs from, what it connected to, and a button to mark it as trusted.</sub></p>
 
-<p align="center"><img src="docs/screenshots/alerts-dark.png" alt="The bell menu listing one new app with a Trust button"></p>
-<p align="center"><sub>The bell collects every new app until you have reviewed it.</sub></p>
+<p align="center"><img src="docs/screenshots/alerts-dark.png" alt="The new-apps menu, opened from the brass button above the map, listing one new app with a Trust button"></p>
+<p align="center"><sub>The button above the map collects every new app until you have reviewed it.</sub></p>
 
 ## Install
 
@@ -94,9 +94,10 @@ Portlight draws its window with Microsoft's WebView2, which is part of Windows 1
 |---|---|
 | See what one app is doing | Click it in the list or on the map |
 | Go back to the big picture | Press `Esc`, or click **Overview** |
+| Switch between light and dark | The sun or moon button at the bottom of the sidebar |
 | Find an app or a server | `Ctrl K`, then type |
 | Freeze the map and the table to read them | `Space`, or **Pause** |
-| Review new apps | Click the bell |
+| Review new apps | Click the **new apps** button above the map |
 | Keep it running in the background | Close the window; Portlight stays in the tray |
 | Quit completely | Right-click the tray icon, then **Quit** |
 
@@ -117,7 +118,7 @@ An app is recognised by the location of its program file. An app that updates it
 
 ## Updates
 
-The installed app checks GitHub for a new release a couple of minutes after it starts, then every 12 hours. With **Install updates automatically** on (the default), it downloads the installer, checks it against the SHA-256 that GitHub publishes, and installs it quietly; your list of known apps is untouched. With it off, the version button in the top bar shows **Update to x.y.z** and waits for you.
+The installed app checks GitHub for a new release a couple of minutes after it starts, then every 12 hours. With **Install updates automatically** on (the default), it downloads the installer, checks it against the SHA-256 that GitHub publishes, and installs it quietly; your list of known apps is untouched. With it off, the version button at the bottom of the sidebar shows **Update to x.y.z** and waits for you.
 
 ## Uninstall
 
@@ -151,8 +152,8 @@ installer\build.ps1        # release exe and installer
 
 ## Credits
 
-- The look of Portlight (one ink on paper, isometric line art, a map above a packet table) was inspired by [Protocol Explorer](https://protocol-explorer-alpha.vercel.app/), designed by Dilum Sanjaya. Portlight is a separate project and shares no code or artwork with it.
-- The typeface is [Iosevka](https://typeof.net/Iosevka/), under the SIL Open Font License.
+- The idea of showing traffic as a live isometric map above a table of events was inspired by [Protocol Explorer](https://protocol-explorer-alpha.vercel.app/), designed by Dilum Sanjaya. Portlight's colours, typefaces, layout and drawings are its own, and it shares no code or artwork with that project.
+- The typefaces are [Manrope](https://manropefont.com/) and [JetBrains Mono](https://www.jetbrains.com/lp/mono/), both under the SIL Open Font License.
 - Built with [Tauri](https://tauri.app/) and [React](https://react.dev/).
 
 ## License

@@ -2686,7 +2686,7 @@ dependencies = [
 
 [[package]]
 name = "portlight"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dns-lookup",
  "portlight-core",
@@ -2703,7 +2703,7 @@ dependencies = [
 
 [[package]]
 name = "portlight-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "portlight-core",
  "portlight-platform",
@@ -2711,7 +2711,7 @@ dependencies = [
 
 [[package]]
 name = "portlight-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -2719,7 +2719,7 @@ dependencies = [
 
 [[package]]
 name = "portlight-platform"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "portlight-core",
  "windows",

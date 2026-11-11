@@ -67,7 +67,7 @@ Portlight/
 │     └─ update.rs            self-update from GitHub Releases
 ├─ src/
 │  ├─ App.tsx                 page layout and page-level state
-│  ├─ components/             Header, AppList, LiveMap, DetailsPanel, FlowTable...
+│  ├─ components/             Sidebar, Topbar, AppList, LiveMap, DetailsPanel, FlowTable...
 │  ├─ hooks/                  useMonitor, useUpdates, useTheme, useHotkeys
 │  ├─ lib/                    backend adapter, demo data, types, text helpers
 │  └─ styles/                 tokens.css (colours, sizes), app.css (components)
@@ -94,7 +94,7 @@ monitor loop                      (shell)  saves known apps if changed
       ▼
 useMonitor hook                   (UI)     merges the snapshot into React state
       ▼
-AppList · LiveMap · DetailsPanel · FlowTable
+Sidebar (AppList) · Topbar · LiveMap · FlowTable · DetailsPanel
 ```
 
 1. **Platform.** `tcp_connections()` returns every open TCP connection with its process ID. `process_info(pid)` returns the program's path and friendly name.
@@ -134,6 +134,7 @@ Security settings worth knowing:
 ## The UI
 
 - **State** lives in three places: `useMonitor` (what the backend says), `App.tsx` (what the user is doing: selection, search, pause) and small components' own state (which tab, which menu is open).
+- **Layout** is three columns: a sidebar (name, search, app list, version and theme), a middle stage (totals, the map, the connection flow) and a details column.
 - **Styling** is plain CSS. Every colour and size is a variable in `tokens.css`; dark mode only redefines those variables.
 - **The live map** is one SVG. Isometric shapes are built from a single box primitive in `iso.tsx`. Each travelling dot is moved by the browser's Web Animations API, so React renders a dot once when it appears and not on every frame. At most ten dots start per update, so a burst of connections stays readable.
 - **Motion** is turned off for people who ask their system for reduced motion.

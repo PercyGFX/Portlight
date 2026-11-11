@@ -5,7 +5,7 @@ import type { FlowEvent } from "./types";
 interface Service {
   /** Short tag, e.g. "HTTPS". */
   label: string;
-  /** Fits the sentence "Started ___ with example.com". */
+  /** Fits the sentence "Started ___". */
   plain: string;
 }
 
@@ -27,7 +27,7 @@ const SERVICES: Record<number, Service> = {
   3389: { label: "RDP", plain: "a remote desktop session" },
   5222: { label: "XMPP", plain: "chat messaging" },
   5228: { label: "PUSH", plain: "push notifications" },
-  8080: { label: "HTTP-ALT", plain: "web traffic on a non-standard port" },
+  8080: { label: "HTTP-ALT", plain: "web traffic on an unusual port" },
   8883: { label: "MQTTS", plain: "device messaging" },
 };
 
@@ -35,10 +35,8 @@ export function serviceOf(port: number): Service {
   return SERVICES[port] ?? { label: `PORT ${port}`, plain: `a connection on port ${port}` };
 }
 
-/** One plain-English sentence for an event. */
-export function describe(event: FlowEvent, destination: string): string {
+/** A few plain words for an event, e.g. "Started secure web traffic". */
+export function describe(event: FlowEvent): string {
   const service = serviceOf(event.remotePort);
-  return event.kind === "opened"
-    ? `Started ${service.plain} with ${destination}`
-    : `Finished talking to ${destination}`;
+  return `${event.kind === "opened" ? "Started" : "Finished"} ${service.plain}`;
 }

@@ -3,9 +3,10 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { AppList } from "./components/AppList";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { FlowTable } from "./components/FlowTable";
-import { Header } from "./components/Header";
 import { LiveMap } from "./components/LiveMap";
+import { Sidebar } from "./components/Sidebar";
 import { Toasts } from "./components/Toasts";
+import { Topbar } from "./components/Topbar";
 import { useHotkeys } from "./hooks/useHotkeys";
 import { useMonitor } from "./hooks/useMonitor";
 import { useTheme } from "./hooks/useTheme";
@@ -14,6 +15,8 @@ import { backend } from "./lib/backend";
 import { countdown } from "./lib/format";
 import type { FlowEvent } from "./lib/types";
 
+// Page layout: a sidebar of apps, a middle stage with the map above the
+// connection flow, and a details column on the right.
 export default function App() {
   const monitor = useMonitor();
   const [theme, setTheme] = useTheme();
@@ -43,6 +46,10 @@ export default function App() {
   const needle = query.trim().toLowerCase();
   const selected = monitor.apps.find((app) => app.id === selectedId) ?? null;
   const newApps = useMemo(() => monitor.apps.filter((app) => !app.trusted), [monitor.apps]);
+  const serverCount = useMemo(
+    () => new Set(monitor.connections.map((conn) => conn.remoteIp)).size,
+    [monitor.connections],
+  );
 
   const listedApps = useMemo(
     () =>
@@ -65,31 +72,37 @@ export default function App() {
 
   return (
     <div className="shell">
-      <Header
-        appsOnline={monitor.apps.filter((app) => app.connections > 0).length}
-        connections={monitor.connections.length}
+      <Sidebar
         query={query}
         searchRef={searchRef}
         theme={theme}
-        newApps={newApps}
         updates={updates}
-        demo={backend.demo}
         onQuery={setQuery}
         onTheme={setTheme}
-        onSelect={setSelectedId}
-        onTrust={monitor.trustApp}
-        onTrustAll={monitor.trustAll}
-      />
-
-      {monitor.learningSecondsLeft > 0 && (
-        <p className="banner" role="status">
-          <strong>Learning.</strong> Portlight is noting which apps are already online on this PC. Alerts for new
-          apps start in {countdown(monitor.learningSecondsLeft)}.
-        </p>
-      )}
-
-      <main className="workspace">
+      >
         <AppList apps={listedApps} selectedId={selectedId} filtered={needle !== ""} onSelect={setSelectedId} />
+      </Sidebar>
+
+      <main className="stage">
+        <Topbar
+          appsOnline={monitor.apps.filter((app) => app.connections > 0).length}
+          connections={monitor.connections.length}
+          servers={serverCount}
+          paused={paused}
+          newApps={newApps}
+          demo={backend.demo}
+          onSelect={setSelectedId}
+          onTrust={monitor.trustApp}
+          onTrustAll={monitor.trustAll}
+        />
+
+        {monitor.learningSecondsLeft > 0 && (
+          <p className="banner" role="status">
+            <strong>Learning.</strong> Portlight is noting which apps are already online on this PC. Alerts for new
+            apps start in {countdown(monitor.learningSecondsLeft)}.
+          </p>
+        )}
+
         <LiveMap
           ready={monitor.ready}
           apps={monitor.apps}
@@ -100,25 +113,26 @@ export default function App() {
           paused={paused}
           onSelect={setSelectedId}
         />
-        <DetailsPanel
-          app={selected}
-          apps={monitor.apps}
-          connections={monitor.connections}
+
+        <FlowTable
+          events={shownEvents}
           hosts={monitor.hosts}
-          now={monitor.now}
-          onTrust={monitor.trustApp}
-          onBack={() => setSelectedId(null)}
+          scope={selected?.name ?? null}
+          paused={paused}
+          onTogglePause={togglePause}
+          onClear={() => setClearedUpTo(monitor.events[0]?.seq ?? 0)}
+          onSelectApp={setSelectedId}
         />
       </main>
 
-      <FlowTable
-        events={shownEvents}
+      <DetailsPanel
+        app={selected}
+        apps={monitor.apps}
+        connections={monitor.connections}
         hosts={monitor.hosts}
-        scope={selected?.name ?? null}
-        paused={paused}
-        onTogglePause={togglePause}
-        onClear={() => setClearedUpTo(monitor.events[0]?.seq ?? 0)}
-        onSelectApp={setSelectedId}
+        now={monitor.now}
+        onTrust={monitor.trustApp}
+        onBack={() => setSelectedId(null)}
       />
 
       <Toasts ready={monitor.ready} newApps={newApps} onSelect={setSelectedId} />

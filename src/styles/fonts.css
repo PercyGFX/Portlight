@@ -1,26 +1,19 @@
-/* Iosevka, bundled so the app never needs the network for its own UI.
-   Only the Latin subset and the three weights in use, as woff2. */
+/* Typefaces, bundled so the app never needs the network for its own UI.
+   Manrope for words, JetBrains Mono for addresses, ports and times.
+   Both are variable fonts: one small file covers every weight. */
 
 @font-face {
-  font-family: "Iosevka";
+  font-family: "Manrope";
   font-style: normal;
-  font-weight: 400;
+  font-weight: 200 800;
   font-display: swap;
-  src: url("@fontsource/iosevka/files/iosevka-latin-400-normal.woff2") format("woff2");
+  src: url("@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2") format("woff2-variations");
 }
 
 @font-face {
-  font-family: "Iosevka";
+  font-family: "JetBrains Mono";
   font-style: normal;
-  font-weight: 600;
+  font-weight: 100 800;
   font-display: swap;
-  src: url("@fontsource/iosevka/files/iosevka-latin-600-normal.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "Iosevka";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("@fontsource/iosevka/files/iosevka-latin-700-normal.woff2") format("woff2");
+  src: url("@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2") format("woff2-variations");
 }

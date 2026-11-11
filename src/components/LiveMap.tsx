@@ -1,6 +1,7 @@
 // The live map: apps on the left, this PC in the middle, the internet and the
-// servers on the right. A dot travels along the lanes whenever a connection
-// opens (outwards) or closes (back home).
+// servers on the right, drawn over sonar rings that spread from this PC.
+// A dot travels along the lanes whenever a connection opens (outwards) or
+// closes (back home).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -9,20 +10,30 @@ import { serviceOf } from "../lib/services";
 import type { AppView, ConnView, EventKind, FlowEvent } from "../lib/types";
 import { AppTile, Cloud, Laptop, Server } from "./iso";
 
-const VIEW = { width: 840, height: 500 };
-const MID_Y = 258;
+const VIEW = { width: 840, height: 470 };
+const MID_Y = 240;
 const APP_X = 200;
 const PC = { x: 368, y: MID_Y };
 const CLOUD = { x: 518, y: MID_Y - 4 };
 const SERVER_X = 638;
-/** Longest label that fits beside a node. */
-const LABEL_CHARS = 21;
 const MAX_APPS = 6;
 const MAX_SERVERS = 5;
+/** Longest label that fits beside a node. */
+const LABEL_CHARS = 21;
 /** Most dots launched from one update, so a burst stays readable. */
 const MAX_BURST = 10;
+/** Sonar rings around this PC. */
+const RINGS = [70, 140, 210, 280, 350, 420];
 
 type Point = [x: number, y: number];
+
+// Where lanes meet the drawings.
+const PC_IN: Point = [PC.x - 54, PC.y + 6];
+const PC_OUT: Point = [PC.x + 52, PC.y + 2];
+const CLOUD_IN: Point = [CLOUD.x - 48, CLOUD.y + 6];
+const CLOUD_OUT: Point = [CLOUD.x + 50, CLOUD.y + 6];
+const appAnchor = (y: number): Point => [APP_X + 28, y];
+const serverAnchor = (y: number): Point => [SERVER_X - 30, y];
 
 interface ServerGroup {
   ip: string;
@@ -60,6 +71,25 @@ function fit<T>(items: T[], max: number): { shown: T[]; more: number } {
   return { shown: items.slice(0, max - 1), more: items.length - (max - 1) };
 }
 
+/** An S-shaped lane: leaves and arrives level, bends in between. */
+function curve([x1, y1]: Point, [x2, y2]: Point): string {
+  const mid = (x1 + x2) / 2;
+  return `M${x1} ${y1} C${mid} ${y1} ${mid} ${y2} ${x2} ${y2}`;
+}
+
+/** Points along the same S-shape, for a dot to follow. */
+function alongCurve([x1, y1]: Point, [x2, y2]: Point, steps = 10): Point[] {
+  const mid = (x1 + x2) / 2;
+  return Array.from({ length: steps + 1 }, (_, i) => {
+    const t = i / steps;
+    const u = 1 - t;
+    return [
+      u * u * u * x1 + 3 * u * u * t * mid + 3 * u * t * t * mid + t * t * t * x2,
+      u * u * u * y1 + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t * y2,
+    ];
+  });
+}
+
 function groupServers(connections: ConnView[], hosts: ReadonlyMap<string, string>): ServerGroup[] {
   const groups = new Map<string, ServerGroup>();
   for (const conn of connections) {
@@ -80,7 +110,7 @@ export function LiveMap({ ready, apps, connections, events, hosts, selectedId, p
     const online = apps.filter((app) => app.connections > 0 || app.id === selectedId);
     const { shown, more } = fit(online, MAX_APPS);
     if (selected && !shown.includes(selected)) shown[shown.length - 1] = selected;
-    const ys = stack(shown.length + (more ? 1 : 0), 70);
+    const ys = stack(shown.length + (more ? 1 : 0), 66);
     return { nodes: shown.map((app, i) => ({ app, y: ys[i] })), more, moreY: ys[shown.length] };
   }, [apps, selected, selectedId]);
 
@@ -88,7 +118,7 @@ export function LiveMap({ ready, apps, connections, events, hosts, selectedId, p
   const serverSlots = useMemo(() => {
     const relevant = selectedId ? connections.filter((c) => c.appId === selectedId) : connections;
     const { shown, more } = fit(groupServers(relevant, hosts), MAX_SERVERS);
-    const ys = stack(shown.length + (more ? 1 : 0), 86);
+    const ys = stack(shown.length + (more ? 1 : 0), 82);
     return { nodes: shown.map((server, i) => ({ server, y: ys[i] })), more, moreY: ys[shown.length] };
   }, [connections, hosts, selectedId]);
 
@@ -103,9 +133,9 @@ export function LiveMap({ ready, apps, connections, events, hosts, selectedId, p
       serverSlots.nodes.find((n) => n.server.ip === event.remoteIp)?.y ?? (serverSlots.more ? serverSlots.moreY : null);
 
     const points: Point[] = [];
-    if (appY !== null) points.push([APP_X + 22, appY]);
-    points.push([PC.x, PC.y], [CLOUD.x, CLOUD.y + 4]);
-    if (serverY !== null) points.push([SERVER_X - 24, serverY]);
+    if (appY !== null) points.push(...alongCurve(appAnchor(appY), PC_IN));
+    points.push(PC_OUT, CLOUD_IN, CLOUD_OUT);
+    if (serverY !== null) points.push(...alongCurve(CLOUD_OUT, serverAnchor(serverY)).slice(1));
     return event.kind === "opened" ? points : points.reverse();
   }, []);
 
@@ -141,39 +171,35 @@ export function LiveMap({ ready, apps, connections, events, hosts, selectedId, p
 
   return (
     <section className="panel map-panel" aria-label="Live map">
-      <div className="map-badge">
-        <span className={`live-dot ${paused ? "is-paused" : ""}`} />
-        {paused ? "PAUSED" : "LIVE MAP"}
-      </div>
-
       <svg className="map" viewBox={`0 0 ${VIEW.width} ${VIEW.height}`} role="img" aria-label="Apps, this PC and the servers they are connected to">
-        <defs>
-          <pattern id="iso-grid" width="55.4" height="32" patternUnits="userSpaceOnUse">
-            <path className="grid-line" d="M0 16 27.7 0 55.4 16 27.7 32Z" />
-          </pattern>
-        </defs>
-        <rect width={VIEW.width} height={VIEW.height} fill="url(#iso-grid)" />
+        {/* Sonar rings spreading from this PC, and one that pulses while live. */}
+        <g className="rings">
+          {RINGS.map((r) => (
+            <circle key={r} cx={PC.x} cy={PC.y + 8} r={r} />
+          ))}
+          {anyOnline && !paused && <circle className="ring-pulse" cx={PC.x} cy={PC.y + 8} r="70" />}
+        </g>
 
-        <text className="map-caption" x={APP_X} y="30" textAnchor="middle">Apps online</text>
-        <text className="map-caption" x={SERVER_X + 30} y="30" textAnchor="middle">{serverCaption}</text>
+        <text className="map-caption" x={APP_X} y="26" textAnchor="middle">Apps online</text>
+        <text className="map-caption" x={SERVER_X + 30} y="26" textAnchor="middle">{serverCaption}</text>
 
         {/* Lanes go under the nodes. */}
         {appSlots.nodes.map(({ app, y }) => (
-          <line
+          <path
             key={app.id}
             className={laneClass(app.connections > 0, selectedId ? app.id === selectedId : null)}
-            x1={APP_X + 26} y1={y} x2={PC.x - 54} y2={PC.y + 6}
+            d={curve(appAnchor(y), PC_IN)}
           />
         ))}
         {appSlots.more > 0 && (
-          <line className={laneClass(true, selectedId ? false : null)} x1={APP_X + 26} y1={appSlots.moreY} x2={PC.x - 54} y2={PC.y + 6} />
+          <path className={laneClass(true, selectedId ? false : null)} d={curve(appAnchor(appSlots.moreY), PC_IN)} />
         )}
-        <line className={laneClass(anyOnline, null)} x1={PC.x + 52} y1={PC.y + 2} x2={CLOUD.x - 48} y2={CLOUD.y + 6} />
+        <path className={laneClass(anyOnline, null)} d={`M${PC_OUT[0]} ${PC_OUT[1]} L${CLOUD_IN[0]} ${CLOUD_IN[1]}`} />
         {serverSlots.nodes.map(({ server, y }) => (
-          <line key={server.ip} className={laneClass(true, null)} x1={CLOUD.x + 50} y1={CLOUD.y + 6} x2={SERVER_X - 28} y2={y} />
+          <path key={server.ip} className={laneClass(true, null)} d={curve(CLOUD_OUT, serverAnchor(y))} />
         ))}
         {serverSlots.more > 0 && (
-          <line className={laneClass(true, null)} x1={CLOUD.x + 50} y1={CLOUD.y + 6} x2={SERVER_X - 28} y2={serverSlots.moreY} />
+          <path className={laneClass(true, null)} d={curve(CLOUD_OUT, serverAnchor(serverSlots.moreY))} />
         )}
 
         {appSlots.nodes.map(({ app, y }) => {
@@ -194,11 +220,11 @@ export function LiveMap({ ready, apps, connections, events, hosts, selectedId, p
                 }
               }}
             >
-              <rect className="node-hit" x="8" y={y - 30} width={APP_X + 22} height="60" />
+              <rect className="node-hit" x="8" y={y - 30} width={APP_X + 22} height="60" rx="10" />
               <AppTile cx={APP_X} cy={y} />
               <text className="node-name" x={APP_X - 38} y={y - 2} textAnchor="end">{shorten(app.name, LABEL_CHARS)}</text>
               <text className="node-sub" x={APP_X - 38} y={y + 13} textAnchor="end">
-                {app.trusted ? plural(app.connections, "connection") : "NEW · not seen before"}
+                {app.trusted ? plural(app.connections, "connection") : "New · not seen before"}
               </text>
             </g>
           );
@@ -225,7 +251,7 @@ export function LiveMap({ ready, apps, connections, events, hosts, selectedId, p
         {serverSlots.nodes.map(({ server, y }) => (
           <g key={server.ip} className="node server-node">
             <Server cx={SERVER_X} cy={y} />
-            <text className="node-name" x={SERVER_X + 38} y={y - 2}>{shorten(server.host ?? server.ip, LABEL_CHARS)}</text>
+            <text className="node-name node-host" x={SERVER_X + 38} y={y - 2}>{shorten(server.host ?? server.ip, LABEL_CHARS)}</text>
             <text className="node-sub" x={SERVER_X + 38} y={y + 13}>
               {server.ports.slice(0, 2).map((p) => serviceOf(p).label).join(", ")} · {plural(server.count, "connection")}
             </text>
@@ -240,7 +266,7 @@ export function LiveMap({ ready, apps, connections, events, hosts, selectedId, p
         )}
 
         {ready && !anyOnline && (
-          <text className="map-empty" x={VIEW.width / 2} y={VIEW.height - 40} textAnchor="middle">
+          <text className="map-empty" x={VIEW.width / 2} y={VIEW.height - 30} textAnchor="middle">
             Nothing is online right now.
           </text>
         )}

@@ -1,4 +1,4 @@
-// Bottom panel: connections opening and closing, newest first, in plain words.
+// Under the map: connections opening and closing, newest first, in plain words.
 
 import { clock, shorten } from "../lib/format";
 import { describe, serviceOf } from "../lib/services";
@@ -42,27 +42,26 @@ export function FlowTable({ events, hosts, scope, paused, onTogglePause, onClear
             <tr>
               <th className="col-time">Time</th>
               <th className="col-app">App</th>
-              <th className="col-event">Event</th>
-              <th className="col-dest">Destination</th>
-              <th className="col-port">Type</th>
               <th>What happened</th>
+              <th className="col-dest">With</th>
+              <th className="col-port">Type</th>
             </tr>
           </thead>
           <tbody>
             {events.map((event) => {
               const destination = hosts.get(event.remoteIp) ?? event.host ?? event.remoteIp;
+              const sentence = describe(event);
               return (
                 <tr key={event.seq} className={`is-${event.kind}`}>
                   <td className="col-time">{clock(event.time)}</td>
                   <td className="col-app">
-                    <button className="link" onClick={() => onSelectApp(event.appId)}>{shorten(event.appName, 28)}</button>
+                    <button className="link" onClick={() => onSelectApp(event.appId)}>{shorten(event.appName, 26)}</button>
                   </td>
-                  <td className="col-event">
-                    <span className={`dot dot-${event.kind}`} /> {event.kind}
+                  <td className="col-what" title={sentence}>
+                    <span className={`dot dot-${event.kind}`} /> {sentence}
                   </td>
-                  <td className="col-dest" title={`${destination} (${event.remoteIp}:${event.remotePort})`}>{shorten(destination, 34)}</td>
+                  <td className="col-dest" title={`${destination} (${event.remoteIp}:${event.remotePort})`}>{destination}</td>
                   <td className="col-port">{serviceOf(event.remotePort).label}</td>
-                  <td className="col-info">{describe(event, shorten(destination, 34))}</td>
                 </tr>
               );
             })}

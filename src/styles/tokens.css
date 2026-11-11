@@ -1,85 +1,97 @@
 /* Design tokens: every colour, size and timing the UI uses.
-   One blue ink on near-white paper in light mode; the same drawing on deep
-   navy in dark mode. Green, amber and grey are reserved for meaning:
-   opened / online, new / needs attention, closed / idle. */
+
+   The look is a ship's porthole at sea: deep sea-teal ink on warm paper in
+   light mode, lamplit water in dark mode, with brass as the one accent.
+   Three colours carry meaning and nothing else uses them:
+   green = opened / online, brass = new / needs a look, grey = closed / idle. */
 
 :root {
-  --font: "Iosevka", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --font-ui: "Manrope", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --fade: 0.3s ease;
 
-  --list-width: 292px;
-  --details-width: 304px;
-  --flow-height: 244px;
-  --gap: 10px;
+  --sidebar-width: 288px;
+  --details-width: 316px;
+  --flow-height: 252px;
+  --gap: 12px;
+
+  --radius-lg: 14px;
+  --radius: 9px;
+  --radius-sm: 6px;
 
   /* Light theme (default) */
-  --bg: #fcfdff;
-  --panel: #ffffff;
-  --ink: #0a33a0;
-  --ink-strong: #06247c;
-  --ink-soft: #55709f;
-  --ink-muted: #8196c0;
-  --line: #7396cc;
-  --line-mid: #c6d5ec;
-  --line-soft: #e4eaf5;
-  --fill-1: #f2f6fd;
-  --fill-2: #e3ebfb;
-  --solid: #0b3aa8;
+  --bg: #f3f1ea;
+  --panel: #fffdf8;
+  --rail: #e9e6dc;
+  --ink: #17454c;
+  --ink-strong: #0b2c33;
+  --ink-soft: #55737a;
+  --ink-muted: #8b9fa2;
+  --line: #9fb9b9;
+  --line-mid: #d6ded9;
+  --line-soft: #e8ece6;
+  --fill-1: #f1f4ee;
+  --fill-2: #dfeae6;
+  --solid: #0f5c63;
   --on-solid: #ffffff;
-  --accent: #1f5fe0;
+  --accent: #0e7f88;
 
-  --green: #00a36a;
-  --green-soft: #dcf5ea;
-  --amber: #c98a00;
-  --amber-soft: #fdf2d6;
-  --grey: #8a9ab8;
+  --green: #1c9a5c;
+  --green-soft: #dcf2e4;
+  --brass: #b9801a;
+  --brass-soft: #f9edcf;
+  --on-brass: #2a1c00;
+  --grey: #93a3a4;
 
   /* Map drawing */
-  --draw: #0b3aa8;
-  --grid: #edf1f9;
-  --lane: #8eaae0;
-  --iso-top: #f4f8ff;
-  --iso-left: #c9d8f6;
-  --iso-right: #a9c0ee;
-  --iso-screen: #dfe8fc;
+  --draw: #17555c;
+  --ring: #dde5df;
+  --lane: #8fb3b3;
+  --iso-top: #fbfdf9;
+  --iso-left: #c6dcd8;
+  --iso-right: #9fc3c0;
+  --iso-screen: #e2efec;
 
-  --shadow: 0 10px 30px rgba(11, 43, 134, 0.14);
+  --shadow-panel: 0 1px 2px rgba(15, 60, 66, 0.06), 0 6px 20px rgba(15, 60, 66, 0.05);
+  --shadow-pop: 0 14px 38px rgba(15, 60, 66, 0.2);
   color-scheme: light;
 }
 
 :root[data-theme="dark"] {
-  --bg: #0b1020;
-  --panel: #0f1628;
-  --ink: #afc4f2;
-  --ink-strong: #d3defa;
-  --ink-soft: #a3b3d4;
-  --ink-muted: #7d92bd;
-  --line: #3c649f;
-  --line-mid: #223656;
-  --line-soft: #19263d;
-  --fill-1: #131d33;
-  --fill-2: #1a2a48;
-  --solid: #1f5fe0;
+  --bg: #091416;
+  --panel: #0f1f22;
+  --rail: #0c1a1c;
+  --ink: #b4d5d2;
+  --ink-strong: #e6f4f1;
+  --ink-soft: #9dbcb9;
+  --ink-muted: #6c8d8c;
+  --line: #2f6669;
+  --line-mid: #1d3c3f;
+  --line-soft: #162e31;
+  --fill-1: #13272a;
+  --fill-2: #193538;
+  --solid: #12868d;
   --on-solid: #ffffff;
-  --accent: #6f97f5;
+  --accent: #45c8cc;
 
-  --green: #19e595;
-  --green-soft: #12382d;
-  --amber: #f5b216;
-  --amber-soft: #3a3015;
-  --grey: #6d7fa3;
+  --green: #35d98b;
+  --green-soft: #12382a;
+  --brass: #f0b83f;
+  --brass-soft: #3b2f12;
+  --on-brass: #2a1c00;
+  --grey: #647f80;
 
-  --draw: #6c93ea;
-  --grid: #131c30;
-  --lane: #34558f;
-  --iso-top: #1c2d4d;
-  --iso-left: #14213a;
-  --iso-right: #253c69;
-  --iso-screen: #182847;
+  --draw: #5cc0c3;
+  --ring: #132a2d;
+  --lane: #2f6468;
+  --iso-top: #1b3a3e;
+  --iso-left: #12292c;
+  --iso-right: #24555a;
+  --iso-screen: #173437;
 
-  --shadow: 0 12px 34px rgba(0, 0, 0, 0.5);
+  --shadow-panel: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.22);
+  --shadow-pop: 0 16px 42px rgba(0, 0, 0, 0.55);
   color-scheme: dark;
 }

@@ -1,5 +1,6 @@
 // The version button: shows this version, offers a newer one, and holds the
-// "install updates automatically" switch.
+// "install updates automatically" switch. It sits at the bottom of the
+// sidebar, so its menu opens upwards.
 
 import { useCallback, useRef, useState } from "react";
 
@@ -16,17 +17,17 @@ export function UpdateMenu({ updates }: { updates: Updates }) {
   const available = status.availableVersion;
 
   return (
-    <div className="alerts" ref={root}>
+    <div className="popover" ref={root}>
       <button
-        className={`button ${available ? "button-solid" : ""}`}
+        className={`button ${available ? "button-solid" : "button-quiet"}`}
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
-        {available ? `Update to ${available}` : `v${status.current}`}
+        {available ? `Update to ${available}` : `Version ${status.current}`}
       </button>
 
       {open && (
-        <div className="menu" role="dialog" aria-label="Version and updates">
+        <div className="menu is-up" role="dialog" aria-label="Version and updates">
           <div className="menu-head">
             <h2 className="section-title">Portlight {status.current}</h2>
           </div>
