@@ -1,0 +1,55 @@
+# Rust build output
+/target/
+**/*.rs.bk
+*.pdb
+
+# Node and front-end build output
+node_modules/
+/dist/
+dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Tauri generated files (rebuilt on every build)
+/src-tauri/gen/schemas/
+/src-tauri/target/
+
+# Installer and release output
+/installer/Output/
+*.exe
+*.msi
+*.zip
+
+# Runtime files (the app keeps its data in %APPDATA%\com.portlight.app, but just in case)
+*.log
+known-apps.json
+
+# Test and automation leftovers
+.playwright-mcp/
+/coverage/
+
+# Editors and IDEs
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+*.suo
+*.sln
+
+# OS clutter
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Local environment and secrets (signing certificates, tokens)
+.env
+.env.*
+*.pfx
+*.p12
+*.pem
+*.key

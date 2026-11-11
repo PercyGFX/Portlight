@@ -1,0 +1,29 @@
+[package]
+name = "portlight"
+description = "See which apps on your PC are online, and get told when a new one connects."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+# The `_lib` suffix keeps the library name different from the binary name,
+# which Windows needs (https://github.com/rust-lang/cargo/issues/8519).
+name = "portlight_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+portlight-core.workspace = true
+portlight-platform.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-notification = "2"
+tauri-plugin-single-instance = "2"
+dns-lookup = "3"
+sha2 = "0.10"
+ureq = { version = "2.12", features = ["json"] }

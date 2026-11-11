@@ -1,0 +1,12 @@
+[package]
+name = "portlight-core"
+description = "Portlight's rules: which app owns which connection, what is new, what changed. No OS or UI code."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true

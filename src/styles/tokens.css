@@ -1,0 +1,85 @@
+/* Design tokens: every colour, size and timing the UI uses.
+   One blue ink on near-white paper in light mode; the same drawing on deep
+   navy in dark mode. Green, amber and grey are reserved for meaning:
+   opened / online, new / needs attention, closed / idle. */
+
+:root {
+  --font: "Iosevka", ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --fade: 0.3s ease;
+
+  --list-width: 292px;
+  --details-width: 304px;
+  --flow-height: 244px;
+  --gap: 10px;
+
+  /* Light theme (default) */
+  --bg: #fcfdff;
+  --panel: #ffffff;
+  --ink: #0a33a0;
+  --ink-strong: #06247c;
+  --ink-soft: #55709f;
+  --ink-muted: #8196c0;
+  --line: #7396cc;
+  --line-mid: #c6d5ec;
+  --line-soft: #e4eaf5;
+  --fill-1: #f2f6fd;
+  --fill-2: #e3ebfb;
+  --solid: #0b3aa8;
+  --on-solid: #ffffff;
+  --accent: #1f5fe0;
+
+  --green: #00a36a;
+  --green-soft: #dcf5ea;
+  --amber: #c98a00;
+  --amber-soft: #fdf2d6;
+  --grey: #8a9ab8;
+
+  /* Map drawing */
+  --draw: #0b3aa8;
+  --grid: #edf1f9;
+  --lane: #8eaae0;
+  --iso-top: #f4f8ff;
+  --iso-left: #c9d8f6;
+  --iso-right: #a9c0ee;
+  --iso-screen: #dfe8fc;
+
+  --shadow: 0 10px 30px rgba(11, 43, 134, 0.14);
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0b1020;
+  --panel: #0f1628;
+  --ink: #afc4f2;
+  --ink-strong: #d3defa;
+  --ink-soft: #a3b3d4;
+  --ink-muted: #7d92bd;
+  --line: #3c649f;
+  --line-mid: #223656;
+  --line-soft: #19263d;
+  --fill-1: #131d33;
+  --fill-2: #1a2a48;
+  --solid: #1f5fe0;
+  --on-solid: #ffffff;
+  --accent: #6f97f5;
+
+  --green: #19e595;
+  --green-soft: #12382d;
+  --amber: #f5b216;
+  --amber-soft: #3a3015;
+  --grey: #6d7fa3;
+
+  --draw: #6c93ea;
+  --grid: #131c30;
+  --lane: #34558f;
+  --iso-top: #1c2d4d;
+  --iso-left: #14213a;
+  --iso-right: #253c69;
+  --iso-screen: #182847;
+
+  --shadow: 0 12px 34px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
