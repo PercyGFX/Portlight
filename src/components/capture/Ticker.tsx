@@ -8,11 +8,15 @@ const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)"
 export function Ticker({ value, format }: { value: number; format(value: number): string }) {
   const [shown, setShown] = useState(value);
   const current = useRef(value);
+  // When the last animation frame ran; frames stop in hidden or busy windows.
+  const lastFrame = useRef(0);
 
   useEffect(() => {
     const from = current.current;
-    // Going down means a new capture: jump straight there.
-    if (value <= from || reducedMotion()) {
+    const stalled = performance.now() - lastFrame.current > 600;
+    // Going down means a new capture: jump straight there. So do windows that are not drawing frames.
+    if (value <= from || stalled || reducedMotion() || document.hidden) {
+      lastFrame.current = performance.now();
       current.current = value;
       setShown(value);
       return;
@@ -20,6 +24,7 @@ export function Ticker({ value, format }: { value: number; format(value: number)
     let frame = 0;
     const startedAt = performance.now();
     const step = (time: number) => {
+      lastFrame.current = time;
       const t = Math.min(1, (time - startedAt) / DURATION_MS);
       const next = from + (value - from) * (1 - (1 - t) ** 3);
       current.current = next;

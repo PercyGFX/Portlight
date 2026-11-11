@@ -40,6 +40,11 @@ interface Props {
 
 const PLAIN_KEY = "portlight.capture.plain";
 const SPLIT_KEY = "portlight.capture.detailsHeight";
+const STOP_UNITS = [
+  ["seconds", "seconds"],
+  ["packets", "packets"],
+  ["megabytes", "MB"],
+] as const;
 const DNS_NOTE =
   "Name lookups (DNS) are made by Windows on the app's behalf, so they appear under Windows system services, not this app.";
 
@@ -160,6 +165,9 @@ export function CapturePage({ capture, target, apps, connections, hosts, leaving
 
   const duration = status.startedAt ? ((status.stoppedAt ?? (running ? Date.now() : status.startedAt)) - status.startedAt) / 1000 : 0;
   const active = hovered ?? picked;
+  const stopSummary = STOP_UNITS.filter(([key]) => Number(stopAfter[key]) > 0)
+    .map(([key, unit]) => `${count(Number(stopAfter[key]))} ${unit}`)
+    .join(" or ");
   // Before the first capture, the big button in the middle is the one thing to press.
   const readyCard = available && status.state === "idle" && status.packets === 0;
   const statePill = running ? (
@@ -184,9 +192,16 @@ export function CapturePage({ capture, target, apps, connections, hosts, leaving
           <div className="capture-setup">
             <span className="setup-label">Capture</span>
             <CaptureTargetPicker target={target} apps={apps} connections={connections} hosts={hosts} onChange={onTarget} />
-            <button className={`button button-quiet disclosure ${advanced ? "is-open" : ""}`} aria-expanded={advanced} onClick={() => setAdvanced((v) => !v)}>
-              More options <ChevronDownIcon />
-            </button>
+            {available && (
+              <button
+                className={`button button-quiet disclosure ${advanced ? "is-open" : ""}`}
+                aria-expanded={advanced}
+                onClick={() => setAdvanced((v) => !v)}
+              >
+                More options <ChevronDownIcon />
+              </button>
+            )}
+            {!advanced && stopSummary && <span className="setup-hint">Stops by itself after {stopSummary}</span>}
             {shownTarget.kind === "app" && (
               <span className="setup-hint" title={DNS_NOTE}>
                 Name lookups show under Windows system services
@@ -196,16 +211,16 @@ export function CapturePage({ capture, target, apps, connections, hosts, leaving
         </div>
 
         <div className="capture-actions">
-          {statePill}
+          {available && statePill}
           {status.packets > 0 && (
-          <SaveMenu
-            packets={status.packets}
-            shown={status.shown}
-            filtered={filtered}
-            selected={selectedRow?.number ?? null}
-            busy={capture.busy === "saving"}
-            onSave={capture.save}
-          />
+            <SaveMenu
+              packets={status.packets}
+              shown={status.shown}
+              filtered={filtered}
+              selected={selectedRow?.number ?? null}
+              busy={capture.busy === "saving"}
+              onSave={capture.save}
+            />
           )}
           {running ? (
             <button className="button button-solid button-big button-stop" disabled={capture.busy !== null} onClick={capture.stop}>
@@ -219,12 +234,12 @@ export function CapturePage({ capture, target, apps, connections, hosts, leaving
         </div>
       </header>
 
-      {advanced && (
+      {advanced && available && (
         <div className="capture-advanced step-in">
           <label className="form-field">
             <span>Network card</span>
             <span className="select">
-              <select value={card} onChange={(event) => setCard(event.target.value)} disabled={!available}>
+              <select value={card} onChange={(event) => setCard(event.target.value)}>
                 <option value="">All active network cards</option>
                 {support?.interfaces.map((item) => (
                   <option key={item.id} value={item.id} disabled={!item.active} title={item.description}>
@@ -235,45 +250,40 @@ export function CapturePage({ capture, target, apps, connections, hosts, leaving
               </select>
               <ChevronDownIcon />
             </span>
+            <small>Usually leave this as it is.</small>
           </label>
           <fieldset className="form-field stop-after">
             <legend>Stop automatically after</legend>
             <div>
-              {(
-                [
-                  ["seconds", "seconds"],
-                  ["packets", "packets"],
-                  ["megabytes", "MB"],
-                ] as const
-              ).map(([key, unit]) => (
+              {STOP_UNITS.map(([key, unit]) => (
                 <label key={key}>
                   <input
-                    type="number"
-                    min={1}
+                    type="text"
                     inputMode="numeric"
-                    placeholder="—"
+                    placeholder="Off"
+                    aria-label={`Stop after this many ${unit}`}
                     value={stopAfter[key]}
-                    onChange={(event) => setStopAfter((current) => ({ ...current, [key]: event.target.value }))}
+                    onChange={(event) => {
+                      const digits = event.target.value.replace(/\D/g, "").slice(0, 9);
+                      setStopAfter((current) => ({ ...current, [key]: digits }));
+                    }}
                   />
                   {unit}
                 </label>
               ))}
             </div>
+            <small>Leave empty to record until you press Stop.</small>
           </fieldset>
-          <label className="form-field">
-            <span>Capture filter (optional, for experts)</span>
+          <label className="form-field capture-filter">
+            <span>Capture filter</span>
             <input
               value={captureFilter}
               spellCheck={false}
-              placeholder="e.g. port 443  or  not arp"
+              placeholder="e.g. port 443"
               onChange={(event) => setCaptureFilter(event.target.value)}
             />
+            <small>Wireshark's capture-filter language. Most people leave this empty.</small>
           </label>
-          <p>
-            Most people never need these, and they take effect the next time you press Start. Leave a stop box empty to keep
-            recording until you press Stop. The capture filter uses Wireshark's capture-filter language (BPF) and decides what
-            is recorded at all; to hide packets you already have, use the search box instead.
-          </p>
         </div>
       )}
 
@@ -326,35 +336,35 @@ export function CapturePage({ capture, target, apps, connections, hosts, leaving
       <Messages capture={capture} />
 
       {available && (
-      <section className="panel capture-overview" aria-label="What is being captured">
-        <ConversationStrip target={shownTarget} cards={cardName} running={running} shown={status.shown} listKey={listKey} />
-        <dl className="counters" aria-live="off">
-          <div>
-            <dt>Packets</dt>
-            <dd><Ticker value={status.packets} format={count} /></dd>
-          </div>
-          {filtered && (
+        <section className="panel capture-overview" aria-label="What is being captured">
+          <ConversationStrip target={shownTarget} cards={cardName} running={running} shown={status.shown} listKey={listKey} />
+          <dl className="counters" aria-live="off">
             <div>
-              <dt>Shown</dt>
-              <dd><Ticker value={status.shown} format={count} /></dd>
+              <dt>Packets</dt>
+              <dd><Ticker value={status.packets} format={count} /></dd>
             </div>
-          )}
-          <div>
-            <dt>Size</dt>
-            <dd><Ticker value={status.bytes} format={bytes} /></dd>
-          </div>
-          <div>
-            <dt>Time</dt>
-            <dd>{elapsed(duration)}</dd>
-          </div>
-          {status.dropped > 0 && (
-            <div className="is-alert" title="Packets the capture driver could not keep up with, or that did not fit">
-              <dt>Missed</dt>
-              <dd>{count(status.dropped)}</dd>
+            {filtered && (
+              <div>
+                <dt>Shown</dt>
+                <dd><Ticker value={status.shown} format={count} /></dd>
+              </div>
+            )}
+            <div>
+              <dt>Size</dt>
+              <dd><Ticker value={status.bytes} format={bytes} /></dd>
             </div>
-          )}
-        </dl>
-      </section>
+            <div>
+              <dt>Time</dt>
+              <dd>{elapsed(duration)}</dd>
+            </div>
+            {status.dropped > 0 && (
+              <div className="is-alert" title="Packets the capture driver could not keep up with, or that did not fit">
+                <dt>Missed</dt>
+                <dd>{count(status.dropped)}</dd>
+              </div>
+            )}
+          </dl>
+        </section>
       )}
 
       {support === null ? (
@@ -491,12 +501,14 @@ function Workspace(props: WorkspaceProps) {
   return (
     <div className={`workspace ${selectedRow && detail ? "" : "is-empty"} ${status.shown > 0 ? "" : "is-bare"}`} ref={area} style={{ "--details-height": `${detailsHeight}px` } as CSSProperties}>
       <section className="panel list-panel" aria-label="Packets">
-        <header className="list-head">
-          <FilterBar inputRef={filterRef} applied={status.filter} error={status.filterError} onApply={capture.setFilter} />
-          <div className="list-tools">
-            <ListMenu plain={plain} filter={status.filter} onPlain={onPlain} />
-          </div>
-        </header>
+        {status.packets > 0 && (
+          <header className="list-head">
+            <FilterBar inputRef={filterRef} applied={status.filter} error={status.filterError} onApply={capture.setFilter} />
+            <div className="list-tools">
+              <ListMenu plain={plain} filter={status.filter} onPlain={onPlain} />
+            </div>
+          </header>
+        )}
         {status.shown > 0 ? (
           <PacketList
             ref={listRef}

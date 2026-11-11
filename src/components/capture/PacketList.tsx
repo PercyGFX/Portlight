@@ -61,10 +61,27 @@ export const PacketList = forwardRef<PacketListHandle, Props>(function PacketLis
     fresh.current = { from: Infinity, until: 0 };
   }, [listKey]);
 
-  // Keep the newest row in view while following.
+  // A new list (new capture or new search) starts by following the newest packet.
+  const lastKey = useRef(listKey);
+  if (lastKey.current !== listKey) {
+    lastKey.current = listKey;
+    if (!followingRef.current) {
+      followingRef.current = true;
+      setFollowing(true);
+    }
+  }
+
+  // Keep the newest row in view while following, and keep the drawn rows in step
+  // with where the list really is (the browser may move it when the list shrinks).
   useLayoutEffect(() => {
     const element = scroller.current;
-    if (element && following) element.scrollTop = element.scrollHeight;
+    if (!element) return;
+    if (following) element.scrollTop = element.scrollHeight;
+    setView((current) =>
+      current.top === element.scrollTop && current.height === element.clientHeight
+        ? current
+        : { top: element.scrollTop, height: element.clientHeight },
+    );
   }, [shown, following, listKey]);
 
   useEffect(() => {
