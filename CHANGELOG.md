@@ -3,6 +3,14 @@
 All notable changes to Portlight are listed here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.1] - 2026-11-12
+
+### Fixed
+
+- **Claude Code couldn't load Portlight's tools** ("tools fetch failed").
+  Apps using the newest MCP version (2026-07-28) need caching details on the
+  tool list, and Portlight now sends them.
+
 ## [0.5.0] - 2026-11-12
 
 Ask your AI assistant about your network.

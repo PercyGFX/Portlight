@@ -61,6 +61,18 @@ fn result(id: &Value, mut result: Value, modern: bool) -> Value {
     json!({ "jsonrpc": "2.0", "id": id, "result": result })
 }
 
+/// How long clients may cache the tool list and server description. Both
+/// are the same for every user and never change while the program runs.
+const CACHE_TTL_MS: u64 = 60 * 60 * 1000;
+
+/// 2026-07-28 requires `ttlMs` and `cacheScope` on cacheable results
+/// (`tools/list`, `server/discover`). Older clients ignore them.
+fn cacheable(mut body: Value) -> Value {
+    body["ttlMs"] = json!(CACHE_TTL_MS);
+    body["cacheScope"] = json!("public");
+    body
+}
+
 fn client_name(info: Option<&Value>) -> Option<String> {
     let info = info?;
     let name = info.get("title").or_else(|| info.get("name"))?.as_str()?;
@@ -136,14 +148,14 @@ pub fn handle(message: &Value, session: &mut Session) -> Action {
         "ping" => Action::Respond(result(&id, json!({}), modern)),
         "server/discover" => Action::Respond(result(
             &id,
-            json!({
+            cacheable(json!({
                 "supportedVersions": MODERN_VERSIONS,
                 "capabilities": { "tools": { "listChanged": false } },
                 "instructions": INSTRUCTIONS,
-            }),
+            })),
             true,
         )),
-        "tools/list" => Action::Respond(result(&id, json!({ "tools": tools() }), modern)),
+        "tools/list" => Action::Respond(result(&id, cacheable(json!({ "tools": tools() })), modern)),
         "tools/call" => {
             let Some(name) = params.get("name").and_then(Value::as_str) else {
                 return Action::Respond(error(&id, INVALID_PARAMS, "tools/call needs a tool name.", None));
@@ -242,11 +254,15 @@ mod tests {
         let mut session = Session::default();
         let discover = respond(modern("server/discover", json!({})), &mut session);
         assert_eq!(discover["result"]["resultType"], "complete");
+        assert!(discover["result"]["ttlMs"].is_u64());
+        assert_eq!(discover["result"]["cacheScope"], "public");
         assert_eq!(discover["result"]["supportedVersions"], json!(["2026-07-28"]));
         assert_eq!(discover["result"]["_meta"][SERVER_INFO_KEY]["name"], "portlight");
 
         let list = respond(modern("tools/list", json!({})), &mut session);
         assert_eq!(list["result"]["resultType"], "complete");
+        assert!(list["result"]["ttlMs"].is_u64());
+        assert_eq!(list["result"]["cacheScope"], "public");
 
         match handle(&modern("tools/call", json!({ "name": "get_app", "arguments": { "app": "Firefox" } })), &mut session) {
             Action::CallTool { request, .. } => {
