@@ -7,6 +7,7 @@ import type { Theme } from "../hooks/useTheme";
 import type { Updates } from "../hooks/useUpdates";
 import { count } from "../lib/format";
 import type { CaptureStatus } from "../lib/types";
+import type { SettingsSection } from "./settings/SettingsPage";
 import { GearIcon, Logo, MoonIcon, RecordIcon, SearchIcon, SunIcon } from "./icons";
 
 interface Props {
@@ -15,15 +16,17 @@ interface Props {
   theme: Theme;
   updates: Updates;
   capture: CaptureStatus;
+  /** AI assistants may read Portlight: shows a small "AI" pill. */
+  assistantOn: boolean;
   onOpenCapture(): void;
-  /** Opens Settings: at Updates when one is waiting, else at About. */
-  onOpenSettings(section?: "updates" | "about"): void;
+  /** Opens Settings, at a section or where it was last. */
+  onOpenSettings(section?: SettingsSection): void;
   onQuery(query: string): void;
   onTheme(theme: Theme): void;
   children: ReactNode;
 }
 
-export function Sidebar({ query, searchRef, theme, updates, capture, onOpenCapture, onOpenSettings, onQuery, onTheme, children }: Props) {
+export function Sidebar({ query, searchRef, theme, updates, capture, assistantOn, onOpenCapture, onOpenSettings, onQuery, onTheme, children }: Props) {
   const next: Theme = theme === "dark" ? "light" : "dark";
   const status = updates.status;
   const available = status?.availableVersion ?? null;
@@ -75,6 +78,16 @@ export function Sidebar({ query, searchRef, theme, updates, capture, onOpenCaptu
           </button>
         )}
         <span className="sidebar-foot-tools">
+          {assistantOn && (
+            <button
+              className="ai-pill"
+              aria-label="AI assistants can read Portlight. Open the AI assistant settings."
+              title="AI assistants can read Portlight"
+              onClick={() => onOpenSettings("assistant")}
+            >
+              AI
+            </button>
+          )}
           <button className="button button-icon" aria-label="Settings" title="Settings" onClick={() => onOpenSettings()}>
             <GearIcon />
           </button>

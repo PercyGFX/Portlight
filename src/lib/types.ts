@@ -131,6 +131,59 @@ export interface HistorySettings {
   oldestDay: string | null;
 }
 
+// ---------- AI assistants (the portlight-mcp program) ----------
+
+export interface ClaudeDesktop {
+  installed: boolean;
+  /** Portlight is in Claude Desktop's config file. */
+  configured: boolean;
+  configPath: string | null;
+}
+
+export interface AssistantStatus {
+  /** The main switch; off by default. */
+  enabled: boolean;
+  /** Full path of portlight-mcp.exe; null when this copy has none (e.g. plain `npm run dev`). */
+  mcpPath: string | null;
+  claudeDesktop: ClaudeDesktop;
+  /** `claude mcp add ...`, for pasting into a terminal. */
+  claudeCodeCommand: string | null;
+  /** The `claude` command was found, so the one-click Add works. */
+  claudeCodeInstalled: boolean;
+  /** Portlight is already in Claude Code's user-wide MCP list. */
+  claudeCodeConfigured: boolean;
+  /** Pretty JSON for any other app's MCP settings file. */
+  configSnippet: string | null;
+}
+
+export type AssistantOutcome = "answered" | "error" | "allowed" | "denied";
+
+export interface AssistantLogEntry {
+  id: number;
+  /** Unix milliseconds. */
+  time: number;
+  /** e.g. "Claude 1.4", "gemini-cli 0.9". */
+  client: string;
+  /** e.g. "get_app". */
+  tool: string;
+  /** Plain words, e.g. "Details of Firefox". */
+  summary: string;
+  outcome: AssistantOutcome;
+  /** Size of what was sent to the assistant. */
+  bytes: number;
+}
+
+/** An assistant wants to start a capture and waits (up to 2 minutes) for an answer. */
+export interface AssistantConsent {
+  id: number;
+  client: string;
+  /** e.g. "Record packets from Firefox for 30 seconds". */
+  action: string;
+  detail: string;
+}
+
+export type AssistantApp = "claudeDesktop" | "claudeCode";
+
 // ---------- Settings and About ----------
 
 export interface AppSettings {
@@ -146,6 +199,8 @@ export interface AppSettings {
   startAtSignIn: boolean;
   /** Only the installed copy can start at sign-in. */
   canStartAtSignIn: boolean;
+  /** AI assistants may read Portlight (read-only mirror; change it with `set_assistant_access`). */
+  assistantAccess: boolean;
 }
 
 /** The settings `set_settings` can change. */

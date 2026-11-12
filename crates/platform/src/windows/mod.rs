@@ -16,6 +16,7 @@ pub mod process;
 pub mod service;
 pub mod signature;
 pub mod startup;
+pub mod user_pipe;
 mod tcp_table;
 
 use std::io;

@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { AppList } from "./components/AppList";
 import { CapturePage } from "./components/capture/CapturePage";
 import { CollectorNotice } from "./components/CollectorNotice";
+import { ConsentPrompt } from "./components/ConsentPrompt";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { FlowTable } from "./components/FlowTable";
 import { LiveMap } from "./components/LiveMap";
@@ -10,6 +11,7 @@ import { SettingsPage, type SettingsSection } from "./components/settings/Settin
 import { Sidebar } from "./components/Sidebar";
 import { Toasts } from "./components/Toasts";
 import { Topbar } from "./components/Topbar";
+import { useAssistant } from "./hooks/useAssistant";
 import { useCapture } from "./hooks/useCapture";
 import { useCollector } from "./hooks/useCollector";
 import { useHotkeys } from "./hooks/useHotkeys";
@@ -36,6 +38,7 @@ export default function App() {
   const updates = useUpdates();
   const collector = useCollector();
   const capture = useCapture();
+  const assistant = useAssistant();
   const [view, setView] = useState<View>("monitor");
   const [leaving, setLeaving] = useState(false);
   // False until the first page change, so the window does not animate on start-up.
@@ -138,23 +141,23 @@ export default function App() {
     [go],
   );
 
+  let page: ReactNode;
   if (view === "settings") {
-    return (
+    page = (
       <SettingsPage
         section={settingsSection}
         theme={theme}
         updates={updates}
         collector={collector}
         capture={capture}
+        assistant={assistant}
         leaving={leaving}
         onSection={setSettingsSection}
         onBack={() => go("monitor")}
       />
     );
-  }
-
-  if (view === "capture") {
-    return (
+  } else if (view === "capture") {
+    page = (
       <CapturePage
         capture={capture}
         target={captureTarget}
@@ -169,86 +172,94 @@ export default function App() {
         onBack={() => go("monitor")}
       />
     );
-  }
+  } else {
+    page = (
+      <div className={`shell ${leaving ? "is-leaving" : moved ? "is-entering" : ""}`}>
+        <Sidebar
+          query={query}
+          searchRef={searchRef}
+          theme={theme.theme}
+          updates={updates}
+          capture={capture.status}
+          assistantOn={assistant.status?.enabled ?? false}
+          onOpenCapture={() => openCapture()}
+          onOpenSettings={openSettings}
+          onQuery={setQuery}
+          onTheme={theme.setChoice}
+        >
+          <AppList apps={listedApps} selectedId={selectedId} filtered={needle !== ""} onSelect={setSelectedId} />
+        </Sidebar>
 
-  return (
-    <div className={`shell ${leaving ? "is-leaving" : moved ? "is-entering" : ""}`}>
-      <Sidebar
-        query={query}
-        searchRef={searchRef}
-        theme={theme.theme}
-        updates={updates}
-        capture={capture.status}
-        onOpenCapture={() => openCapture()}
-        onOpenSettings={openSettings}
-        onQuery={setQuery}
-        onTheme={theme.setChoice}
-      >
-        <AppList apps={listedApps} selectedId={selectedId} filtered={needle !== ""} onSelect={setSelectedId} />
-      </Sidebar>
+        <main className="stage">
+          <Topbar
+            appsOnline={monitor.apps.filter((app) => app.connections > 0).length}
+            connections={monitor.connections.length}
+            servers={serverCount}
+            paused={paused}
+            newApps={newApps}
+            demo={backend.demo}
+            source={monitor.source}
+            onSelect={setSelectedId}
+            onTrust={monitor.trustApp}
+            onTrustAll={monitor.trustAll}
+          />
 
-      <main className="stage">
-        <Topbar
-          appsOnline={monitor.apps.filter((app) => app.connections > 0).length}
-          connections={monitor.connections.length}
-          servers={serverCount}
-          paused={paused}
-          newApps={newApps}
-          demo={backend.demo}
-          source={monitor.source}
-          onSelect={setSelectedId}
-          onTrust={monitor.trustApp}
-          onTrustAll={monitor.trustAll}
-        />
+          <CollectorNotice collector={collector} source={monitor.source} />
 
-        <CollectorNotice collector={collector} source={monitor.source} />
+          {monitor.learningSecondsLeft > 0 && (
+            <p className="banner" role="status">
+              <strong>Learning.</strong> Portlight is noting which apps are already online on this PC. Alerts for new
+              apps start in {countdown(monitor.learningSecondsLeft)}.
+            </p>
+          )}
 
-        {monitor.learningSecondsLeft > 0 && (
-          <p className="banner" role="status">
-            <strong>Learning.</strong> Portlight is noting which apps are already online on this PC. Alerts for new
-            apps start in {countdown(monitor.learningSecondsLeft)}.
-          </p>
-        )}
+          <LiveMap
+            ready={monitor.ready}
+            apps={monitor.apps}
+            connections={monitor.connections}
+            events={monitor.events}
+            hosts={monitor.hosts}
+            selectedId={selectedId}
+            paused={paused}
+            onSelect={setSelectedId}
+            onCapture={openCapture}
+          />
 
-        <LiveMap
-          ready={monitor.ready}
+          <FlowTable
+            events={shownEvents}
+            hosts={monitor.hosts}
+            owners={monitor.owners}
+            scope={selected?.name ?? null}
+            paused={paused}
+            onTogglePause={togglePause}
+            onClear={() => setClearedUpTo(monitor.events[0]?.seq ?? 0)}
+            onSelectApp={setSelectedId}
+          />
+        </main>
+
+        <DetailsPanel
+          app={selected}
           apps={monitor.apps}
           connections={monitor.connections}
-          events={monitor.events}
           hosts={monitor.hosts}
-          selectedId={selectedId}
-          paused={paused}
+          owners={monitor.owners}
+          now={monitor.now}
+          source={monitor.source}
+          onTrust={monitor.trustApp}
+          onBack={() => setSelectedId(null)}
           onSelect={setSelectedId}
           onCapture={openCapture}
         />
 
-        <FlowTable
-          events={shownEvents}
-          hosts={monitor.hosts}
-          owners={monitor.owners}
-          scope={selected?.name ?? null}
-          paused={paused}
-          onTogglePause={togglePause}
-          onClear={() => setClearedUpTo(monitor.events[0]?.seq ?? 0)}
-          onSelectApp={setSelectedId}
-        />
-      </main>
+        <Toasts ready={monitor.ready} newApps={newApps} onSelect={setSelectedId} />
+      </div>
+    );
+  }
 
-      <DetailsPanel
-        app={selected}
-        apps={monitor.apps}
-        connections={monitor.connections}
-        hosts={monitor.hosts}
-        owners={monitor.owners}
-        now={monitor.now}
-        source={monitor.source}
-        onTrust={monitor.trustApp}
-        onBack={() => setSelectedId(null)}
-        onSelect={setSelectedId}
-        onCapture={openCapture}
-      />
-
-      <Toasts ready={monitor.ready} newApps={newApps} onSelect={setSelectedId} />
-    </div>
+  return (
+    <>
+      {page}
+      <ConsentPrompt assistant={assistant} />
+    </>
   );
 }

@@ -745,6 +745,47 @@ impl Capture {
         session.status()
     }
 
+    /// Rows matching a filter of the caller's own, without touching the
+    /// display filter the person has set. Returns the rows and how many
+    /// packets match in all. For AI assistants.
+    pub fn rows_matching(&self, filter: &str, start: usize, count: usize) -> Result<(Vec<PacketRow>, usize), String> {
+        let filter = Filter::parse(filter).map_err(|e| e.to_string())?;
+        let knowledge = self.knowledge();
+        let session = self.session();
+        let mut rows = Vec::new();
+        let mut matched = 0usize;
+        for (index, packet) in session.packets.iter().enumerate() {
+            let link = session.link_of(packet);
+            let hit = filter.is_empty()
+                || filter.matches(&PacketRef {
+                    link,
+                    frame: &packet.data,
+                    original_len: packet.original_len,
+                    number: index as u32 + 1,
+                    app: packet.app.as_deref(),
+                    ctx: &*knowledge,
+                });
+            if !hit {
+                continue;
+            }
+            if matched >= start && rows.len() < count {
+                rows.push(PacketRow {
+                    number: index as u32 + 1,
+                    time: session.time_of(packet),
+                    summary: summarize(link, &packet.data, packet.original_len, &*knowledge),
+                    app: packet.app.as_deref().map(str::to_string),
+                });
+            }
+            matched += 1;
+        }
+        Ok((rows, matched))
+    }
+
+    /// What the current capture is of, in words.
+    pub fn target_words(&self) -> String {
+        target_words(self.session().target.as_ref())
+    }
+
     pub fn rows(&self, start: u32, count: u32) -> Vec<PacketRow> {
         let knowledge = self.knowledge();
         let session = self.session();

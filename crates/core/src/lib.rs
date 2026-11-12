@@ -11,6 +11,7 @@
 //! - [`KnownApps`] remembers every app that has gone online, across restarts.
 //! - The types in [`model`] are what front-ends (window, console) display.
 
+pub mod assistant;
 mod flows;
 mod known_apps;
 pub mod model;

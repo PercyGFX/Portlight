@@ -63,6 +63,9 @@ Source: "..\target\release\portlight-service.exe"; DestDir: "{app}"; Flags: igno
 ; Who owns each server's network, from iptoasn.com (public domain). Looked up on
 ; the PC; built by scripts\update-owners.ps1.
 Source: "..\target\release\owners.bin"; DestDir: "{app}"; Flags: ignoreversion
+; Lets AI assistants (Claude Desktop, Claude Code, other MCP apps) ask Portlight
+; questions. Does nothing until turned on in Settings > AI assistants.
+Source: "..\target\release\portlight-mcp.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 
 [Icons]
@@ -80,6 +83,9 @@ Filename: "{app}\portlight.exe"; Parameters: "{param:launch|--background}"; Flag
 
 [UninstallRun]
 Filename: "{app}\portlight.exe"; Parameters: "--quit"; Flags: runhidden waituntilterminated; RunOnceId: "QuitPortlight"
+; Take Portlight out of Claude Desktop's and Claude Code's MCP settings, so they
+; don't keep trying to start a program that is gone.
+Filename: "{app}\portlight.exe"; Parameters: "--forget-assistants"; Flags: runhidden waituntilterminated; RunOnceId: "ForgetAssistants"
 ; Removing the service needs administrator rights, so this asks once, and only
 ; if the service was turned on.
 Filename: "{app}\portlight-service.exe"; Parameters: "uninstall"; Verb: "runas"; Flags: shellexec runhidden waituntilterminated; RunOnceId: "RemoveCollector"; Check: CollectorInstalled

@@ -25,6 +25,10 @@ Portlight is four layers, plus a small service that runs beside it. Each layer o
   Collector     crates/collector/  portlight-service.exe, a Windows
                 service that reads network events with administrator
                 rights and streams them to the shell over a named pipe
+
+  MCP bridge    crates/mcp/        portlight-mcp.exe, started by AI
+                assistant apps; speaks MCP on stdio and asks the window
+                over a per-user pipe
 ```
 
 | Layer | Crate or folder | Knows about | Must not contain |
@@ -34,6 +38,7 @@ Portlight is four layers, plus a small service that runs beside it. Each layer o
 | Packets | `crates/packets` (`portlight-packets`) | Packet formats, display filters, pcapng | Windows APIs, Tauri, threads |
 | Owners | `crates/geo` (`portlight-geo`) | The compact owner file: building it from iptoasn.com data and looking addresses up | Windows APIs, Tauri, threads |
 | Collector | `crates/collector` (`portlight-collector`, binary `portlight-service`) | The service lifecycle, the event loop | Rules about apps |
+| MCP bridge | `crates/mcp` (`portlight-mcp`) | The MCP protocol (both eras), forwarding tool calls | Any data or decision: the window answers |
 | Shell | `src-tauri` (`portlight`) | Tauri, threads, the network (DNS lookups, update checks), capture sessions | Rules about apps or connections |
 | UI | `src` | The data shapes the shell sends | Any decision about what is new or trusted |
 
@@ -58,9 +63,11 @@ Portlight/
 │  │  ├─ tracker.rs           readings in, apps and events out
 │  │  ├─ flows.rs             network events in, readings out (used by the collector)
 │  │  ├─ wire.rs              the collector's messages (JSON lines)
+│  │  ├─ assistant.rs         the MCP tool catalogue and the bridge's request/reply
 │  │  └─ known_apps.rs        apps seen before, saved as JSON
 │  ├─ packets/src/            dissectors per protocol, summaries, display filters, pcapng writer
 │  ├─ geo/src/                owner file format, builder (bin: portlight-owners), lookups
+│  ├─ mcp/src/                portlight-mcp: protocol.rs (pure, tested) and main.rs (stdio, pipe)
 │  ├─ platform/src/windows/
 │  │  ├─ tcp_table.rs         TCP connections and UDP ports with their process IDs
 │  │  ├─ process.rs           process ID to program path and name
@@ -71,6 +78,8 @@ Portlight/
 │  │  ├─ signature.rs         who signed a program (offline Authenticode check)
 │  │  ├─ icon.rs              a program's icon as RGBA pixels
 │  │  ├─ clock.rs             the local time zone, for history days
+│  │  ├─ user_pipe.rs         a two-way pipe only this Windows user can open
+│  │  ├─ startup.rs           start at sign-in (the Run key)
 │  │  └─ npcap.rs             packet capture through Npcap, loaded at run time
 │  ├─ collector/src/
 │  │  ├─ main.rs              service entry point and commands
@@ -90,6 +99,7 @@ Portlight/
 │     ├─ owners.rs            server owner lookups from owners.bin
 │     ├─ history.rs           daily history in SQLite
 │     ├─ export.rs            live view as CSV
+│     ├─ assistant.rs         answers AI assistants: tools, permission prompts, log, app setup
 │     ├─ dns.rs               background reverse lookups
 │     ├─ commands.rs          calls the window can make
 │     ├─ tray.rs              tray icon and menu
@@ -177,6 +187,29 @@ These rules are in `crates/core/src/tracker.rs` and each has a test.
 - **Stop conditions.** Optionally stop after so many seconds, packets or megabytes, like Wireshark's automatic stop.
 - **Saving.** All packets, the shown ones, the selected one or a range, as pcapng (one interface block per network card, the app name as each packet's comment), the list as CSV, or the full breakdown as readable text or JSON. Rust opens the Save dialog, so the window needs no file access.
 
+## AI assistants (MCP)
+
+The user-facing guide, with the tool list, is [MCP.md](MCP.md).
+
+```
+AI app (Claude Desktop, Claude Code, Gemini CLI...)
+   │  starts portlight-mcp.exe, MCP JSON-RPC on stdin/stdout (one message per line)
+   ▼
+portlight-mcp            protocol.rs: initialize (legacy) or per-request _meta (2026-07-28),
+   │                     server/discover, tools/list, tools/call → one Request
+   │  \\.\pipe\portlight-assistant-<user SID>   (access list: this user only; one request per connection)
+   ▼
+Portlight window         assistant.rs: switch off? → polite error. Rate limit. Run the tool against
+                         the tracker, history, owners and capture. start_capture → "assistant:consent"
+                         event → Allow / Don't allow (2 minutes, then no) → capture with stop conditions.
+                         Every request → "What was shared" (memory only) and "assistant:activity".
+```
+
+- The tool list lives once, in `crates/core/src/assistant.rs`, so the bridge and the window can't disagree.
+- Tool errors are returned as tool results (`isError: true`) worded for the assistant to pass on; protocol mistakes are JSON-RPC errors.
+- Each tool call runs on its own thread in the bridge, so a permission prompt doesn't block other requests.
+- Setup: `assistant.rs` merges a `portlight` entry into Claude Desktop's `claude_desktop_config.json` (regular or Microsoft Store install, keeping a backup) or runs `claude mcp add --scope user`. `portlight.exe --forget-assistants`, run by the uninstaller, removes both.
+
 ## The window and Rust
 
 The commands are in `src-tauri/src/commands.rs`:
@@ -198,8 +231,10 @@ The commands are in `src-tauri/src/commands.rs`:
 | `get_settings`, `set_settings` | The Settings page: sign-in start, tray, notifications, name lookups, auto-update |
 | `learn_again`, `forget_known_apps` | Trust everything now and learn for two minutes; or start over |
 | `about`, `open_link` | The About section, and opening Portlight's own fixed web pages or data folder |
+| `assistant_status`, `set_assistant_access`, `connect_assistant_app` | Settings › AI assistants: the switch and connecting apps |
+| `assistant_answer`, `assistant_log`, `clear_assistant_log` | Permission prompts and "What was shared" |
 
-Rust sends the window four events: `monitor:tick` (a `Snapshot`), `update:status`, `collector:status` and `capture:status`.
+Rust sends the window six events: `monitor:tick` (a `Snapshot`), `update:status`, `collector:status`, `capture:status`, `assistant:consent` and `assistant:activity`.
 
 The shapes are defined once in Rust (`crates/core/src/model.rs`, `src-tauri/src/collector.rs`, `src-tauri/src/capture.rs`, `crates/packets`, `src-tauri/src/update.rs`) and mirrored by hand in `src/lib/types.ts`. Change both together.
 

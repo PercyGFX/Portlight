@@ -17,8 +17,8 @@ if ($LASTEXITCODE -ne 0) { throw "Tests failed" }
 # Builds the web UI, then the exe with the UI inside it.
 npm run tauri -- build --no-bundle
 if ($LASTEXITCODE -ne 0) { throw "Build failed" }
-# The background service for detailed monitoring.
-cargo build --release -p portlight-collector
+# The background service for detailed monitoring, and the AI assistant bridge.
+cargo build --release -p portlight-collector -p portlight-mcp
 if ($LASTEXITCODE -ne 0) { throw "Service build failed" }
 # The offline list of who owns which network (downloads about 11 MB).
 & "$root\scripts\update-owners.ps1"

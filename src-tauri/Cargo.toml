@@ -1,6 +1,6 @@
 [package]
 name = "portlight"
-description = "See which apps on your PC are online, and get told when a new one connects."
+description = "See which apps on your PC are online, get told when a new one connects, and ask your AI assistant about it."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

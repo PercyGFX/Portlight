@@ -10,7 +10,7 @@ mod windows;
 #[cfg(windows)]
 pub use windows::WindowsPlatform as SystemPlatform;
 #[cfg(windows)]
-pub use windows::{adapters, clock, etw, icon, npcap, pipe, process, service, signature, startup, udp_ports};
+pub use windows::{adapters, clock, etw, icon, npcap, pipe, process, service, signature, startup, udp_ports, user_pipe};
 
 #[cfg(not(windows))]
 compile_error!("Portlight supports Windows only for now. See docs/PLAN.md for the roadmap.");

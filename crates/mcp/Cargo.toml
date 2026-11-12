@@ -1,0 +1,17 @@
+[package]
+name = "portlight-mcp"
+description = "Lets AI assistants (Claude Desktop, Claude Code and other MCP clients) ask a running Portlight what is happening on this PC."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "portlight-mcp"
+path = "src/main.rs"
+
+[dependencies]
+portlight-core.workspace = true
+portlight-platform.workspace = true
+serde_json.workspace = true

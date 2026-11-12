@@ -23,6 +23,9 @@ pub struct Settings {
     /// Ask the DNS server for the names of server addresses. When off,
     /// Portlight makes no DNS queries of its own.
     pub reverse_lookups: bool,
+    /// Let AI assistants (through portlight-mcp) read what Portlight knows.
+    /// Off until the person turns it on.
+    pub assistant_access: bool,
 }
 
 impl Default for Settings {
@@ -34,6 +37,7 @@ impl Default for Settings {
             close_to_tray: true,
             notify_new_apps: true,
             reverse_lookups: true,
+            assistant_access: false,
         }
     }
 }
@@ -61,6 +65,12 @@ mod tests {
         assert!(Settings::default().auto_update);
         assert!(serde_json::from_str::<Settings>("{}").unwrap().auto_update);
         assert!(!serde_json::from_str::<Settings>(r#"{"autoUpdate":false}"#).unwrap().auto_update);
+    }
+
+    #[test]
+    fn ai_assistants_are_off_until_turned_on() {
+        assert!(!Settings::default().assistant_access);
+        assert!(!serde_json::from_str::<Settings>("{}").unwrap().assistant_access);
     }
 
     #[test]

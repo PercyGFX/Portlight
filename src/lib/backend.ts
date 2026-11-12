@@ -9,6 +9,10 @@ import { createDemoBackend } from "./demo";
 import type {
   About,
   AppSettings,
+  AssistantApp,
+  AssistantConsent,
+  AssistantLogEntry,
+  AssistantStatus,
   CaptureStartOptions,
   CaptureStatus,
   CaptureSupport,
@@ -100,6 +104,21 @@ export interface Backend {
   forgetKnownApps(): Promise<void>;
   about(): Promise<About>;
   openLink(link: LinkTarget): Promise<void>;
+
+  /** AI assistants: the switch, the apps Portlight can be added to, and what was shared. */
+  assistantStatus(): Promise<AssistantStatus>;
+  setAssistantAccess(enabled: boolean): Promise<AssistantStatus>;
+  /** Answers a consent prompt. */
+  assistantAnswer(id: number, allow: boolean): Promise<void>;
+  /** Newest first, up to 300, kept in memory only. */
+  assistantLog(): Promise<AssistantLogEntry[]>;
+  clearAssistantLog(): Promise<void>;
+  /** Adds Portlight to (or, with `connect` false, removes it from) an assistant app. Rejects with a readable message. */
+  connectAssistantApp(client: AssistantApp, connect: boolean): Promise<AssistantStatus>;
+  /** An assistant wants to start a capture; the window is already in front. */
+  onAssistantConsent(onConsent: (consent: AssistantConsent) => void): Promise<() => void>;
+  /** An assistant's request was handled. */
+  onAssistantActivity(onEntry: (entry: AssistantLogEntry) => void): Promise<() => void>;
 }
 
 /** Minutes ahead of UTC, so exported times match the clock on this PC. */
@@ -151,6 +170,15 @@ const tauriBackend: Backend = {
   forgetKnownApps: () => invoke("forget_known_apps"),
   about: () => invoke<About>("about"),
   openLink: (link) => invoke("open_link", { link }),
+
+  assistantStatus: () => invoke<AssistantStatus>("assistant_status"),
+  setAssistantAccess: (enabled) => invoke<AssistantStatus>("set_assistant_access", { enabled }),
+  assistantAnswer: (id, allow) => invoke("assistant_answer", { id, allow }),
+  assistantLog: () => invoke<AssistantLogEntry[]>("assistant_log"),
+  clearAssistantLog: () => invoke("clear_assistant_log"),
+  connectAssistantApp: (client, connect) => invoke<AssistantStatus>("connect_assistant_app", { client, connect }),
+  onAssistantConsent: (onConsent) => listen<AssistantConsent>("assistant:consent", (event) => onConsent(event.payload)),
+  onAssistantActivity: (onEntry) => listen<AssistantLogEntry>("assistant:activity", (event) => onEntry(event.payload)),
 };
 
 const insideDesktopApp = "__TAURI_INTERNALS__" in window;

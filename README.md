@@ -6,11 +6,13 @@
 
 <p align="center">
   See which apps on your PC are online, who they are talking to, and get told the first time a new app connects.<br>
+  Ask Claude or any AI assistant about it in plain words, through Portlight's built-in MCP server.<br>
   A friendlier take on network monitoring: apps first, packets when you want them. Written in Rust.
 </p>
 
 <p align="center">
   <a href="https://github.com/PercyGFX/Portlight/releases/latest"><b>Download the latest release</b></a>
+  &nbsp;&nbsp;|&nbsp;&nbsp; <a href="docs/MCP.md">AI assistants (MCP)</a>
   &nbsp;&nbsp;|&nbsp;&nbsp; <a href="CHANGELOG.md">What's new</a>
   &nbsp;&nbsp;|&nbsp;&nbsp; <a href="docs/PLAN.md">Roadmap</a>
   &nbsp;&nbsp;|&nbsp;&nbsp; Windows 10 (1809+) and Windows 11, 64-bit
@@ -32,6 +34,7 @@
 - [New-app alerts](#new-app-alerts)
 - [Detailed monitoring](#detailed-monitoring)
 - [Packet capture](#packet-capture)
+- [AI assistants](#ai-assistants)
 - [Settings](#settings)
 - [Your data](#your-data)
 - [Updates](#updates)
@@ -50,6 +53,8 @@ Portlight answers that first. It starts from apps ("Firefox has 4 connections to
 
 When you do want packets, you don't pick a network card and type filters as you would in Wireshark. You click an app, a server or a connection, and Portlight captures just that and explains each packet in plain words.
 
+And when you'd rather just ask, connect your AI assistant: *"Is this new app safe, and who does it talk to?"* Claude, Gemini or Cursor can read what Portlight sees and answer, and can even capture packets and explain them, after you click Allow.
+
 ## Features
 
 **See**
@@ -67,6 +72,13 @@ When you do want packets, you don't pick a network card and type filters as you 
 - **Save for Wireshark** (`.pcapng`), or export the list as CSV or the full breakdown as text or JSON (handy for reports, or for pasting into an AI chat). Save everything, only what your search shows, one packet or a range.
 - **Stop automatically** after a number of seconds, packets or megabytes.
 - **Export the live view**: apps, open connections and connection history as CSV.
+
+**Ask your AI**
+
+- A built-in **MCP server** for **Claude Desktop**, **Claude Code**, **Gemini CLI**, **Cursor**, **VS Code** and any other MCP app. One click to connect Claude.
+- Ask in plain words: what's online, who owns a server, which app used the most data this week, whether a new app looks safe.
+- Assistants can **capture and explain packets**, but only after you click **Allow** in Portlight.
+- **Off by default**, read-only, and every request is listed under **What was shared**.
 
 **Know your apps**
 
@@ -95,6 +107,9 @@ The screenshots use the app's built-in demo data, so no real connections are sho
 
 <p align="center"><img src="docs/screenshots/capture-dark.png" alt="The packet capture page for Firefox: a strip with dots travelling between Firefox and the internet, a list of packets each described in plain English, and the selected packet broken down layer by layer next to its raw bytes"></p>
 <p align="center"><sub>Capture one app's packets in one click. Every packet is explained in plain English, with the full breakdown and the bytes one click away.</sub></p>
+
+<p align="center"><img src="docs/screenshots/assistants-dark.png" alt="Settings › AI assistants in the dark theme: the switch is on, Claude Desktop is added, Claude Code has an Add button and a command to copy, and Other apps shows the MCP settings to paste"></p>
+<p align="center"><sub>Connect Claude Desktop or Claude Code in one click, or copy the settings for any other MCP app.</sub></p>
 
 <p align="center"><img src="docs/screenshots/new-app-light.png" alt="A new app called Photo Sync Helper, running from the Downloads folder, is marked in brass and labelled Not signed, with a short explanation and a Mark as trusted button"></p>
 <p align="center"><sub>A new app: who made it (or that nobody signed it), where it runs from, what it connected to, and a button to mark it as trusted.</sub></p>
@@ -161,6 +176,40 @@ Packet capture needs **[Npcap](https://npcap.com/#download)**, the free capture 
 
 Captures stay in memory until you save them or start another; they are limited to 200,000 packets or 512 MB. Encrypted traffic stays encrypted: you see who, when and how much, not what.
 
+## AI assistants
+
+Ask Claude, Gemini or another AI assistant about your network in plain words: *"Which app used the most data today?"*, *"Is Photo Sync Helper safe? Who does it talk to?"*, *"Capture what it sends for 30 seconds and explain it."*
+
+Portlight includes an [MCP](https://modelcontextprotocol.io) server, `portlight-mcp.exe`. It is **off until you turn it on** in Settings › AI assistants.
+
+**Set it up in three clicks:** open Settings › AI assistants, turn on **Let AI assistants read Portlight**, and click **Add** next to your app.
+
+| App | How to connect |
+|---|---|
+| Claude Desktop | Settings › AI assistants › **Add**, then restart Claude Desktop |
+| Claude Code | **Add** in the same place, or run the `claude mcp add ...` line shown there |
+| Gemini CLI, Cursor, VS Code and others | Copy the settings shown there into the app's MCP settings file |
+
+What assistants can do:
+
+| Can | Can't |
+|---|---|
+| See apps, connections, servers and who owns them | Trust, block or forget apps |
+| Read your history | Change any setting |
+| Read captured packets and explain them | See anything while the switch is off |
+| Start a capture, **after you click Allow** in Portlight; it stops by itself | Start a capture without asking |
+
+Every request appears under **What was shared**, with the app's name, what it asked and how much was sent back.
+
+**How it runs:** you never start `portlight-mcp.exe` yourself. Your AI app starts it in the background and closes it when it quits; it asks the Portlight app you already have open (the tray is enough) through a private pipe only your Windows account can use. If Portlight is closed or the switch is off, the assistant is told so, and gets nothing else.
+
+<p align="center"><img src="docs/screenshots/assistant-consent-light.png" width="800" alt="A card in Portlight reading: Claude wants to start a capture, Record packets from Firefox for 30 seconds, with Don't allow and Allow buttons and a countdown"></p>
+<p align="center"><sub>An assistant asks before it captures anything. No answer within two minutes counts as no.</sub></p>
+
+The full guide, with every tool, manual setup for other apps and troubleshooting, is in **[docs/MCP.md](docs/MCP.md)**.
+
+> Portlight itself still sends nothing anywhere. But what an assistant reads goes to that assistant, and from there to its AI service, under that service's terms. Turn the switch off whenever you like.
+
 ## Settings
 
 The gear at the bottom of the sidebar opens Settings. Everything has a sensible default, so most people never need it.
@@ -171,6 +220,7 @@ The gear at the bottom of the sidebar opens Settings. Everything has a sensible 
 | Alerts | Windows notifications and pop-ups for new apps, **Learn again** (trust what you have and stay quiet for two minutes), forget all known apps |
 | Monitoring | Detailed monitoring on or off |
 | Privacy & data | History on or off and how long it is kept, clear history, server name lookups on or off, the date of the server owner list |
+| AI assistants | Let AI assistants read Portlight, connect Claude Desktop or Claude Code, settings for other apps, what was shared |
 | Packet capture | Whether Npcap is installed |
 | Updates | Automatic updates, check now, update |
 | About | Version, credits, links and what's new in every version |
@@ -181,6 +231,7 @@ The gear at the bottom of the sidebar opens Settings. Everything has a sensible 
 - **History** (on by default): `history.sqlite` in the same folder holds daily totals of which app talked to which server, how often and how much data, for 90 days. No packet contents. Turn it off, change how long it is kept, or clear it in Settings › Privacy & data.
 - **Server owners** come from a list bundled with Portlight (`owners.bin`), so looking them up sends nothing anywhere. **Signatures** are checked without going online.
 - Captured packets are kept in memory only, and written to disk only when you save them.
+- **AI assistants** (off by default): when you turn them on, whatever an assistant asks for is sent to that assistant app, and from there to its AI service. Portlight lists every request under Settings › AI assistants › What was shared (kept in memory only).
 - The optional collector service writes problems (not your traffic) to `C:\ProgramData\Portlight\collector.log`.
 - It sends nothing about you or your connections anywhere.
 - It makes two kinds of request itself: **name lookups** to your usual DNS server, to turn server addresses into names (turn these off in Settings › Privacy & data), and an **update check** to GitHub twice a day (Settings › Updates).
@@ -212,12 +263,12 @@ The full plan, with the reasons behind each decision, is in [docs/PLAN.md](docs/
 | ✅ | 0.1–0.2 Monitoring | Live apps, map, connection flow, new-app alerts |
 | ✅ | 0.3 Detailed monitoring and packet capture | Every connection, UDP, data used, real site names; capture by app, server or connection; Wireshark export |
 | ✅ | 0.4 App identity and history | Icons, publisher signatures, server owners, daily history, Settings and About |
+| ✅ | 0.5 AI assistants | An MCP server for Claude Desktop, Claude Code, Gemini CLI and others, with your OK for any capture |
 | Next | Unusual-activity hints | "Looks unusual, and here's why": odd folders, fake Windows names, beaconing, big uploads, known-bad servers. No AI needed |
 | Then | Blocking | Block an app, an address or a site with the Windows firewall; a Block button on new-app alerts; strict mode |
 | Later | Capture follow-ups | Follow a whole conversation, open saved captures, capture to disk |
 | Later | Replay and polish | Replay a capture on the map, translations |
-| Later | MCP server | Let Claude Desktop and other AI assistants read Portlight, with your OK for any action |
-| Later | Ask questions | Ask Portlight about what you see, with your own AI key |
+| Later | Ask inside Portlight | A chat box in Portlight itself, with your own AI key (0.5 already works with your AI app) |
 | Later | Code signing, Linux, macOS | |
 
 ## For developers
@@ -229,11 +280,14 @@ npm run dev                # just the UI in a browser, with demo data
 cargo test --workspace     # the tests
 cargo run -p portlight-cli # the live feed in a console, no window
 target\debug\portlight-service.exe console   # the collector's feed (admin prompt)
+cargo build -p portlight-mcp                                         # the MCP server, for the dev build
+claude mcp add portlight -- "%CD%\target\debug\portlight-mcp.exe"   # try it from Claude Code
 installer\build.ps1        # release exe and installer
 ```
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how the code is organised and how data flows through it.
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): setup, everyday commands, and how to cut a release.
+- [docs/MCP.md](docs/MCP.md): the MCP server for AI assistants, its tools and protocol details.
 - [docs/PLAN.md](docs/PLAN.md): what is built, what is next, and the decisions behind it.
 
 ## Credits

@@ -4095,6 +4095,384 @@ button.week-row:hover {
   }
 }
 
+/* ---------- Settings › AI assistants ---------- */
+
+.settings-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+  margin-bottom: 6px;
+}
+
+.settings-group-head .section-title {
+  margin: 0 0 0 4px;
+}
+
+/* A row with something full width underneath, like a command to copy. */
+.settings-row.is-stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.settings-row-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.settings-muted {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+
+.button-small {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12.5px;
+}
+
+.settings-more {
+  width: 100%;
+  padding: 9px 14px;
+  border: 0;
+  border-top: 1px solid var(--line-soft);
+  background: none;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--accent);
+  text-align: left;
+}
+
+.settings-more:hover {
+  background: var(--fill-2);
+}
+
+/* A row that opens to show more. */
+.settings-disclosure {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+}
+
+.settings-disclosure .icon {
+  flex: none;
+  color: var(--ink-muted);
+  transition: transform 0.25s var(--ease-out);
+}
+
+.assistant-other.is-open .settings-disclosure .icon {
+  transform: rotate(90deg);
+}
+
+.assistant-more {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.assistant-more .assistant-code + .settings-hint {
+  margin-top: 6px;
+}
+
+.assistant-code {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 6px 8px 11px;
+  border: 1px solid var(--line-mid);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.assistant-code pre {
+  flex: 1;
+  min-width: 0;
+  margin: 2px 0;
+  color: var(--ink-strong);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+/* What assistants can and cannot do, side by side. */
+.assistant-can {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.assistant-can-col {
+  padding: 12px 14px 13px;
+}
+
+.assistant-can-col + .assistant-can-col {
+  border-left: 1px solid var(--line-soft);
+}
+
+.assistant-can-col h4 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.assistant-can-col ul {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.assistant-can-col li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--ink-strong);
+}
+
+.assistant-can-col li .icon {
+  flex: none;
+  margin-top: 2px;
+}
+
+.assistant-can-col.is-yes .icon {
+  color: var(--green);
+}
+
+.assistant-can-col.is-no li {
+  color: var(--ink-soft);
+}
+
+.assistant-can-col.is-no .icon {
+  color: var(--ink-muted);
+}
+
+/* What was shared: one line per request, columns lined up across rows. */
+.assistant-log {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.assistant-log-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  column-gap: 14px;
+  min-height: 40px;
+  padding: 7px 14px;
+  font-size: 12.5px;
+  animation: fade-in 0.4s ease;
+}
+
+.assistant-log-row + .assistant-log-row {
+  border-top: 1px solid var(--line-soft);
+}
+
+.assistant-log-time,
+.assistant-log-size {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+}
+
+.assistant-log-size {
+  text-align: right;
+}
+
+.assistant-log-client {
+  font-weight: 700;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.assistant-log-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--ink-strong);
+}
+
+.assistant-log-summary > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistant-log-row.is-error .assistant-log-summary {
+  color: var(--ink-soft);
+}
+
+.tag-allowed {
+  background: var(--brass-soft);
+  color: var(--brass);
+}
+
+.tag-denied {
+  background: var(--fill-2);
+  color: var(--ink-soft);
+}
+
+.tag-error {
+  border: 1px solid var(--line-mid);
+  line-height: 15px;
+  color: var(--ink-muted);
+}
+
+/* Sidebar: a quiet sign that assistants can read Portlight. */
+.ai-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: center;
+  height: 24px;
+  padding: 0 9px 0 8px;
+  border: 1px solid var(--line-mid);
+  border-radius: 999px;
+  background: none;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.ai-pill::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  content: "";
+}
+
+.ai-pill:hover {
+  border-color: var(--line);
+  color: var(--ink-strong);
+}
+
+/* ---------- Consent prompt: an assistant asks to start a capture ---------- */
+
+.consent-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--scrim);
+  animation: fade-in 0.2s ease;
+}
+
+.consent {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(460px, 100%);
+  padding: 20px 20px 16px;
+  border: 1px solid var(--brass);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-pop);
+  outline: none;
+  animation: menu-up 0.3s var(--ease-out);
+}
+
+.consent-kicker {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--brass);
+}
+
+.consent h2 {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  color: var(--ink-strong);
+}
+
+.consent-action {
+  margin: 6px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--fill-1);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink-strong);
+}
+
+.consent-detail {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.consent-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.consent-timer {
+  flex: 1 1 180px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+}
+
+.consent-note {
+  position: fixed;
+  bottom: 26px;
+  left: 50%;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid var(--line-mid);
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow: var(--shadow-pop);
+  font-weight: 700;
+  color: var(--ink-strong);
+  transform: translateX(-50%);
+  animation: fade-in 0.3s ease;
+}
+
+.consent-note .live-dot {
+  color: var(--red);
+}
+
+@media (max-width: 1240px) {
+  .assistant-log-row {
+    column-gap: 10px;
+  }
+}
+
 /* ---------- Motion ---------- */
 
 @keyframes lane-flow {

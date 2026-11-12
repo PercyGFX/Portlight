@@ -3,6 +3,27 @@
 All notable changes to Portlight are listed here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-11-12
+
+Ask your AI assistant about your network.
+
+### Added
+
+- **AI assistants (MCP).** Claude Desktop, Claude Code, Gemini CLI, Cursor and
+  other apps that support the Model Context Protocol can now ask Portlight
+  questions: which apps are online, what an app talks to and who owns those
+  servers, what changed today, what a captured packet means. Off until you
+  turn it on in Settings › AI assistants.
+- **One click to connect** Claude Desktop or Claude Code, and ready-to-copy
+  settings for other apps.
+- **A full guide** to connecting assistants, every tool and troubleshooting:
+  [docs/MCP.md](docs/MCP.md).
+- **You stay in charge.** Assistants can look, not change anything. Starting
+  a capture shows an Allow / Don't allow prompt in Portlight and stops by
+  itself. Every request is listed under "What was shared".
+- Uninstalling Portlight also takes it out of Claude Desktop's and Claude
+  Code's settings.
+
 ## [0.4.0] - 2026-11-12
 
 Know your apps, and remember what they did.

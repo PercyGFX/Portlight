@@ -50,8 +50,8 @@ jobs:
       - name: Build the app
         run: npm run tauri -- build --no-bundle
 
-      - name: Build the background service
-        run: cargo build --release --locked -p portlight-collector
+      - name: Build the background service and the AI assistant bridge
+        run: cargo build --release --locked -p portlight-collector -p portlight-mcp
 
       - name: Build the server owner list (iptoasn.com, public domain)
         shell: pwsh

@@ -2,7 +2,7 @@
 
 What Portlight is for, what exists today, what comes next, and the decisions made along the way. Update this file when a milestone lands or a decision changes.
 
-Last updated: 12 November 2026, version 0.4.0.
+Last updated: 12 November 2026, version 0.5.0.
 
 ## The idea
 
@@ -35,6 +35,8 @@ One limit applies to every tool of this kind: most traffic is encrypted (HTTPS),
 | Signature checks | Offline: no revocation lists fetched | Keeps the "nothing leaves your PC" promise; the cost is that a certificate revoked after signing still counts |
 | Server owners (0.4.0) | iptoasn.com data (public domain), converted to a compact file shipped in the installer and refreshed with each release | Free to redistribute, one file for owner and country, and every lookup stays on the PC. The country is where the network is registered, which is honest about what the data says |
 | History (0.4.0) | SQLite (bundled), daily totals per app and server, on by default for 90 days | Small, fast and queryable; daily totals answer "what did this app talk to" without storing anything like a packet log |
+| AI assistants (0.5.0) | An MCP server program (`portlight-mcp`) that the assistant app starts, speaking both MCP eras (2026-07-28 per-request, and the older `initialize` handshake); it forwards each tool call to the window over a per-user pipe | Works with every MCP app installed today. The window keeps the data and the decisions: the switch, the log, the permission prompt. The bridge itself never goes online |
+| What assistants may do | Read-only tools, plus starting a capture after an Allow prompt (always time-limited) and stopping one; never trust, block, forget or change settings | Useful answers without handing an AI control of the PC |
 | Capture design | Npcap loaded at run time; capture by app, server, site name or connection; Wireshark-style display filters; pcapng export | Wireshark captures by network card and needs filter syntax. Portlight captures what you clicked and writes the filter for you, while still speaking Wireshark's language for those who know it |
 
 ## What is built
@@ -76,6 +78,14 @@ One limit applies to every tool of this kind: most traffic is encrypted (HTTPS),
 - **About**: version, author, links, credits, and the changelog shown inside the app, with the update button.
 - **Port names**: Cloudflare Tunnel, STUN, Remote Desktop, SSH and other common ports are named in the connection flow.
 
+### 0.5.0: AI assistants (Milestone 7a)
+
+- `portlight-mcp.exe`, an MCP server for Claude Desktop, Claude Code, Gemini CLI, Cursor and other MCP apps. Speaks MCP 2026-07-28 and the earlier handshake-based versions.
+- Off by default; Settings › AI assistants turns it on, connects Claude Desktop or Claude Code in one click, and shows copyable settings for other apps.
+- Read-only tools for apps, connections, owners, history and captured packets; `start_capture` asks the person first and stops by itself.
+- "What was shared": every request, with the app's name, what it asked and how much was sent back.
+- The uninstaller removes Portlight from Claude Desktop's and Claude Code's settings.
+
 ### 0.3.0 (continued)
 
 - **Live view**
@@ -112,7 +122,7 @@ Each milestone ends with something that works.
 | 4 | Blocking | After 3b |
 | 5+ | Capture follow-ups | Any time |
 | 6 | Replay and polish (the settings page part is done in 0.4.0) | Later |
-| 7a | MCP server: let your own AI assistant read Portlight | Later; before 7 |
+| 7a | MCP server: let your own AI assistant read Portlight | Done (0.5.0), moved ahead of 3b |
 | 7 | Ask questions with your own AI key | Later |
 
 ### Milestone 3: richer app identity and history (done in 0.4.0)
@@ -153,7 +163,17 @@ Rules that point out what looks odd, each with its reason in plain words ("Runs 
 - Optional monthly refresh of the server owner list between releases (downloads the whole list, so it reveals nothing about which servers are used; off by default).
 - Clearer wording for DHCPv6, NetBIOS and traffic from virtual machines (WSL, Hyper-V) in packet summaries.
 
-### Milestone 7a: an MCP server for AI assistants
+### Milestone 7a: an MCP server for AI assistants (done in 0.5.0)
+
+Built as planned, with these details:
+
+- 14 tools: `portlight_status`, `list_apps`, `get_app`, `list_connections`, `recent_activity`, `new_apps`, `lookup_server`, `app_history`, `history_summary`, `capture_status`, `read_packets`, `explain_packet`, `start_capture`, `stop_capture`.
+- Answers carry both readable JSON text and `structuredContent`; errors come back as tool results written for the assistant to relay ("AI assistant access is turned off in Portlight…").
+- Rate limit of 120 requests a minute; lists capped (200 apps, 500 connections or events, 200 packets per call).
+- "What was shared" is kept in memory, not on disk.
+- Not yet: MCP resources and prompts, `subscriptions/listen` for live updates, the Streamable HTTP transport. None is needed by today's clients.
+
+Original plan:
 
 Let AI assistants that speak the Model Context Protocol (Claude Desktop, Claude Code, and other MCP clients) ask Portlight what is happening, so people can use the assistant they already have instead of entering a key into Portlight.
 

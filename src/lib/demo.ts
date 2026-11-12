@@ -3,6 +3,7 @@
 // ranges reserved for documentation, so nothing real is shown or contacted.
 
 import type { Backend } from "./backend";
+import { createDemoAssistant } from "./demoAssistant";
 import { createDemoCapture } from "./demoCapture";
 import { createDemoHistory } from "./demoHistory";
 import { demoIcon } from "./demoIcons";
@@ -305,6 +306,7 @@ export function createDemoBackend(): Backend {
     reverseLookups: true,
     startAtSignIn: false,
     canStartAtSignIn: false,
+    assistantAccess: false,
   };
 
   const pick = <T,>(items: T[]): T => items[Math.floor(random() * items.length)];
@@ -467,6 +469,15 @@ export function createDemoBackend(): Backend {
     },
   );
 
+  const capture = createDemoCapture({
+    connections: () => connections,
+    appName: (id) => APPS.find((app) => app.id === id)?.name ?? id,
+  });
+  const { enabled: assistantEnabled, ...assistant } = createDemoAssistant({
+    startCapture: capture.captureStart,
+    firefoxId: APPS[0].id,
+  });
+
   return {
     demo: true,
     getSnapshot: async () => snapshot(Date.now(), 0),
@@ -512,12 +523,12 @@ export function createDemoBackend(): Backend {
     },
     ...history,
 
-    getSettings: async () => ({ ...settings, autoUpdate: update.autoUpdate }),
+    getSettings: async () => ({ ...settings, autoUpdate: update.autoUpdate, assistantAccess: assistantEnabled() }),
     setSettings: async (change) => {
       await wait(120);
       Object.assign(settings, change);
       if (change.autoUpdate !== undefined) update.autoUpdate = change.autoUpdate;
-      return { ...settings, autoUpdate: update.autoUpdate };
+      return { ...settings, autoUpdate: update.autoUpdate, assistantAccess: assistantEnabled() };
     },
     learnAgain: async () => {
       trusted.forEach((_, id) => trusted.set(id, true));
@@ -540,9 +551,7 @@ export function createDemoBackend(): Backend {
     }),
     openLink: async () => {},
 
-    ...createDemoCapture({
-      connections: () => connections,
-      appName: (id) => APPS.find((app) => app.id === id)?.name ?? id,
-    }),
+    ...capture,
+    ...assistant,
   };
 }

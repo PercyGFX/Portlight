@@ -56,6 +56,21 @@ Put the rule in `crates/core` and write its test first, using the fake system at
 
 Install [Npcap](https://npcap.com/#download) with its default options. In a browser, `npm run dev` plays an invented capture (`src/lib/demoCapture.ts`), which is how the capture page is developed and screenshotted.
 
+### Working on AI assistants (MCP)
+
+`cargo test -p portlight-mcp` covers the protocol (both MCP eras, errors, tool results) without any client. To try it for real, build the bridge once (`npm run tauri dev` doesn't build it, and until you do, Settings says it is "not part of this copy"), start the app, turn on Settings › AI assistants, then click **Add** or connect Claude Code by hand:
+
+```powershell
+cargo build -p portlight-mcp
+claude mcp add portlight -- "C:\path\to\Portlight\target\debug\portlight-mcp.exe"
+```
+
+and ask it something ("what's online?"). `/mcp` in Claude Code shows the connection. To see the raw protocol, pipe JSON lines into `target\debug\portlight-mcp.exe` by hand; with Portlight closed, tool calls answer that Portlight isn't running.
+
+The user guide, with the tool list, is [MCP.md](MCP.md); keep its Tools table in step.
+
+When you add a tool, add it to `crates/core/src/assistant.rs` (the catalogue the bridge lists) and to `run` in `src-tauri/src/assistant.rs` (the answer), and give it a line in `describe` for the log.
+
 ### Working on server owners
 
 The owner list is not in git (it is about 10 MB and changes hourly upstream). Run `scripts\update-owners.ps1` once: it downloads the iptoasn.com data and writes `owners.bin` into `target\debug` and `target\release`, next to the exe, where Portlight looks for it. Without it, owners are simply not shown. `cargo run -p portlight-geo --bin portlight-owners -- lookup target\debug\owners.bin 1.1.1.1` checks it.

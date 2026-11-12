@@ -6,7 +6,10 @@
 //! - `--background` starts hidden in the tray (used when starting with Windows).
 //! - `--open` starts with the window showing, which is also the default.
 //! - `--quit` asks a running Portlight to exit (used by the installer).
+//! - `--forget-assistants` takes Portlight out of Claude Desktop's and Claude
+//!   Code's settings, then exits (used by the uninstaller).
 
+mod assistant;
 mod capture;
 mod collector;
 mod commands;
@@ -32,6 +35,11 @@ const MAIN_WINDOW: &str = "main";
 
 pub fn run() {
     let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--forget-assistants") {
+        let _ = assistant::remove_from_claude_desktop();
+        let _ = assistant::remove_from_claude_code();
+        return;
+    }
     let wants_quit = args.iter().any(|a| a == "--quit");
     let in_background = args.iter().any(|a| a == "--background");
 
@@ -83,6 +91,12 @@ pub fn run() {
             commands::forget_known_apps,
             commands::about,
             commands::open_link,
+            commands::assistant_status,
+            commands::set_assistant_access,
+            commands::assistant_answer,
+            commands::assistant_log,
+            commands::clear_assistant_log,
+            commands::connect_assistant_app,
         ])
         .setup(move |app| {
             if wants_quit {
@@ -94,9 +108,11 @@ pub fn run() {
             let data_dir = app.path().app_data_dir()?;
             app.manage(AppState::load(&data_dir));
             app.manage(Arc::new(Capture::default()));
+            app.manage(assistant::Assistant::default());
 
             tray::create(app.handle())?;
             monitor::spawn(app.handle().clone());
+            assistant::spawn(app.handle().clone());
             update::spawn_auto_updater(app.handle().clone());
 
             if !in_background {

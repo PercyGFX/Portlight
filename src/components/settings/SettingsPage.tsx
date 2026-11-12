@@ -1,8 +1,9 @@
 // Settings, iPhone style: a short list of sections on the left, grouped rows on the right,
 // each row a plain label, an optional one-line hint and one control.
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 
+import type { Assistant } from "../../hooks/useAssistant";
 import type { Capture } from "../../hooks/useCapture";
 import type { Collector } from "../../hooks/useCollector";
 import { useHistorySettings } from "../../hooks/useHistory";
@@ -15,15 +16,18 @@ import { bytes, count, dayLabel } from "../../lib/format";
 import type { LinkTarget } from "../../lib/types";
 import { CopyButton } from "../CopyButton";
 import { BackIcon, ExternalIcon, Logo } from "../icons";
+import { AssistantSection } from "./AssistantSection";
 import { Changelog } from "./Changelog";
+import { ConfirmButton, Credit, ErrorNote, Group, LinkButton, Row, Segmented, Switch, Title } from "./parts";
 
-export type SettingsSection = "general" | "alerts" | "monitoring" | "privacy" | "capture" | "updates" | "about";
+export type SettingsSection = "general" | "alerts" | "monitoring" | "privacy" | "assistant" | "capture" | "updates" | "about";
 
 const SECTIONS: Array<[SettingsSection, string]> = [
   ["general", "General"],
   ["alerts", "Alerts"],
   ["monitoring", "Monitoring"],
   ["privacy", "Privacy & data"],
+  ["assistant", "AI assistants"],
   ["capture", "Packet capture"],
   ["updates", "Updates"],
   ["about", "About"],
@@ -37,6 +41,7 @@ interface Props {
   updates: Updates;
   collector: Collector;
   capture: Capture;
+  assistant: Assistant;
   leaving: boolean;
   onSection(section: SettingsSection): void;
   onBack(): void;
@@ -44,7 +49,7 @@ interface Props {
 
 const open = (link: LinkTarget) => void backend.openLink(link).catch(console.error);
 
-export function SettingsPage({ section, theme, updates, collector, capture, leaving, onSection, onBack }: Props) {
+export function SettingsPage({ section, theme, updates, collector, capture, assistant, leaving, onSection, onBack }: Props) {
   const settings = useSettings();
 
   // Esc goes back to the live view, unless a field or a confirm has focus.
@@ -53,7 +58,7 @@ export function SettingsPage({ section, theme, updates, collector, capture, leav
       if (event.key !== "Escape") return;
       const target = event.target as HTMLElement | null;
       if (target?.closest(".settings-confirm") || target?.tagName === "INPUT") return;
-      if (document.querySelector(".settings-confirm")) return;
+      if (document.querySelector(".settings-confirm, .consent")) return;
       onBack();
     };
     window.addEventListener("keydown", onKey);
@@ -101,6 +106,7 @@ export function SettingsPage({ section, theme, updates, collector, capture, leav
             {section === "alerts" && <Alerts settings={settings} />}
             {section === "monitoring" && <Monitoring collector={collector} />}
             {section === "privacy" && <Privacy settings={settings} />}
+            {section === "assistant" && <AssistantSection assistant={assistant} />}
             {section === "capture" && <CaptureSection capture={capture} />}
             {section === "updates" && <UpdatesSection updates={updates} />}
             {section === "about" && <AboutSection settings={settings} />}
@@ -496,117 +502,5 @@ function AboutSection({ settings }: SettingsProps) {
       </Group>
 
     </>
-  );
-}
-
-// ---------- Building blocks ----------
-
-function Title({ text, hint }: { text: string; hint?: string }) {
-  return (
-    <div className="settings-title">
-      <h2>{text}</h2>
-      {hint && <p>{hint}</p>}
-    </div>
-  );
-}
-
-function Group({ title, children }: { title?: string; children: ReactNode }) {
-  return (
-    <div className="settings-group">
-      {title && <h3 className="section-title">{title}</h3>}
-      <div className="settings-rows">{children}</div>
-    </div>
-  );
-}
-
-function Row({ label, hint, control, mono = false }: { label: string; hint?: string; control?: ReactNode; mono?: boolean }) {
-  return (
-    <div className="settings-row">
-      <div className="settings-row-text">
-        <span className="settings-label">{label}</span>
-        {hint && <span className={`settings-hint ${mono ? "mono" : ""}`}>{hint}</span>}
-      </div>
-      {control && <div className="settings-control">{control}</div>}
-    </div>
-  );
-}
-
-function Credit({ name, text, onClick }: { name: string; text: string; onClick?: () => void }) {
-  return <Row label={name} hint={text} control={onClick ? <LinkButton label="Visit" onClick={onClick} /> : undefined} />;
-}
-
-function Switch({ label, checked, disabled = false, onChange }: { label: string; checked: boolean; disabled?: boolean; onChange(value: boolean): void }) {
-  return (
-    <label className={`switch ${disabled ? "is-disabled" : ""}`}>
-      <input type="checkbox" role="switch" aria-label={label} checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
-      <span className="switch-track" aria-hidden="true">
-        <span className="switch-thumb" />
-      </span>
-    </label>
-  );
-}
-
-function Segmented<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: Array<[T, string]>; onChange(value: T): void }) {
-  return (
-    <div className="segmented" role="radiogroup" aria-label={label}>
-      {options.map(([id, text]) => (
-        <button key={id} role="radio" aria-checked={value === id} className={value === id ? "is-active" : ""} onClick={() => onChange(id)}>
-          {text}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function LinkButton({ label, onClick }: { label: string; onClick(): void }) {
-  return (
-    <button className="button" onClick={onClick}>
-      {label} <ExternalIcon />
-    </button>
-  );
-}
-
-/** A button that asks once more, in place, before doing something that cannot be undone. */
-function ConfirmButton(props: { label: string; question: string; confirm: string; danger?: boolean; disabled?: boolean; onConfirm(): void }) {
-  const { label, question, confirm, danger = false, disabled = false, onConfirm } = props;
-  const [asking, setAsking] = useState(false);
-  if (!asking) {
-    return (
-      <button className={`button ${danger ? "button-calm-danger" : ""}`} disabled={disabled} onClick={() => setAsking(true)}>
-        {label}
-      </button>
-    );
-  }
-  return (
-    <span
-      className={`settings-confirm step-in ${danger ? "is-danger" : ""}`}
-      role="alertdialog"
-      aria-label={question}
-      onKeyDown={(event) => event.key === "Escape" && setAsking(false)}
-    >
-      <span>{question}</span>
-      <button
-        className={`button ${danger ? "button-danger" : "button-solid"}`}
-        autoFocus
-        onClick={() => {
-          setAsking(false);
-          onConfirm();
-        }}
-      >
-        {confirm}
-      </button>
-      <button className="button button-quiet" onClick={() => setAsking(false)}>
-        Cancel
-      </button>
-    </span>
-  );
-}
-
-function ErrorNote({ text }: { text: string }) {
-  return (
-    <p className="menu-error has-copy settings-error" role="alert">
-      <span>{text}</span>
-      <CopyButton value={text} what="message" />
-    </p>
   );
 }

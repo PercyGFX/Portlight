@@ -7,6 +7,7 @@ use portlight_core::Snapshot;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
+use crate::assistant::{self, Assistant, AssistantStatus, LogEntry};
 use crate::capture::{
     self, Capture, CaptureStartOptions, CaptureStatus, CaptureSupport, ExportFormat, PacketDetail, PacketRow, Selection,
 };
@@ -309,6 +310,7 @@ pub struct AppSettings {
     pub close_to_tray: bool,
     pub notify_new_apps: bool,
     pub reverse_lookups: bool,
+    pub assistant_access: bool,
     pub start_at_sign_in: bool,
     /// Only the installed copy can start at sign-in.
     pub can_start_at_sign_in: bool,
@@ -334,6 +336,7 @@ fn app_settings(state: &AppState) -> AppSettings {
         close_to_tray: settings.close_to_tray,
         notify_new_apps: settings.notify_new_apps,
         reverse_lookups: settings.reverse_lookups,
+        assistant_access: settings.assistant_access,
         start_at_sign_in: portlight_platform::startup::is_enabled(),
         can_start_at_sign_in: update::running_installed_copy(),
     }
@@ -432,4 +435,55 @@ pub fn open_link(app: AppHandle, link: String) -> Result<(), String> {
         _ => return Err(format!("Unknown link: {link}")),
     };
     portlight_platform::service::open_url(&target).map_err(|e| e.to_string())
+}
+
+// ---------- AI assistants (MCP) ----------
+
+/// The switch, the setup details for each assistant app, and whether
+/// Claude Desktop / Claude Code already know about Portlight.
+#[tauri::command]
+pub fn assistant_status(app: AppHandle) -> AssistantStatus {
+    assistant::status(&app)
+}
+
+/// Turns AI assistant access on or off. Takes effect on the next request.
+#[tauri::command]
+pub fn set_assistant_access(app: AppHandle, enabled: bool) -> AssistantStatus {
+    app.state::<AppState>().update_settings(|settings| settings.assistant_access = enabled);
+    assistant::status(&app)
+}
+
+/// The person's answer to "Allow this assistant to start a capture?".
+#[tauri::command]
+pub fn assistant_answer(assistant: State<'_, Assistant>, id: u64, allow: bool) {
+    assistant.answer(id, allow);
+}
+
+/// What assistants asked for, newest first.
+#[tauri::command]
+pub fn assistant_log(assistant: State<'_, Assistant>) -> Vec<LogEntry> {
+    assistant.log()
+}
+
+#[tauri::command]
+pub fn clear_assistant_log(assistant: State<'_, Assistant>) {
+    assistant.clear_log();
+}
+
+/// Adds or removes Portlight in an assistant app's settings.
+/// `client` is "claudeDesktop" or "claudeCode".
+#[tauri::command]
+pub async fn connect_assistant_app(app: AppHandle, client: String, connect: bool) -> Result<AssistantStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        match (client.as_str(), connect) {
+            ("claudeDesktop", true) => assistant::add_to_claude_desktop()?,
+            ("claudeDesktop", false) => assistant::remove_from_claude_desktop()?,
+            ("claudeCode", true) => assistant::add_to_claude_code()?,
+            ("claudeCode", false) => assistant::remove_from_claude_code()?,
+            _ => return Err(format!("Unknown assistant app: {client}")),
+        }
+        Ok(assistant::status(&app))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
