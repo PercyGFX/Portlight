@@ -16,6 +16,8 @@ use tauri_plugin_notification::NotificationExt;
 use crate::capture::Capture;
 use crate::collector::{self, Drained, Feed};
 use crate::dns::Resolver;
+use crate::identity::SignatureChecker;
+use crate::owners;
 use crate::state::{AppState, now_ms};
 
 /// Event the window listens to. Its payload is a `Snapshot`.
@@ -35,6 +37,7 @@ pub fn spawn(app: AppHandle) {
 fn run(app: AppHandle) {
     let platform = portlight_platform::system();
     let resolver = Resolver::spawn(app.clone());
+    let signatures = SignatureChecker::spawn(app.clone());
     let state = app.state::<AppState>();
     let capture = app.state::<Arc<Capture>>();
     let mut last_event = 0;
@@ -71,6 +74,13 @@ fn run(app: AppHandle) {
             }
             update.map(|update| {
                 update.map(|update| {
+                    // The owner list is in memory, so this is quick enough
+                    // to do here and have owners in this very snapshot.
+                    for ip in &update.new_addresses {
+                        if let Some(owner) = owners::lookup(*ip) {
+                            tracker.set_owner(*ip, owner);
+                        }
+                    }
                     if update.known_changed {
                         state.save_known_apps(&tracker);
                     }
@@ -86,7 +96,14 @@ fn run(app: AppHandle) {
                 for ip in update.new_ips {
                     resolver.request(ip);
                 }
-                if !update.new_apps.is_empty() {
+                for (app_id, path) in update.check_signatures {
+                    signatures.request(app_id, path);
+                }
+                let settings = state.settings();
+                if settings.history_enabled && !update.activity.is_empty() {
+                    state.history.record(&update.activity, settings.history_keep_days);
+                }
+                if !update.new_apps.is_empty() && state.settings().notify_new_apps {
                     notify_new_apps(&app, &update.new_apps);
                 }
                 let _ = app.emit(TICK_EVENT, &snapshot);

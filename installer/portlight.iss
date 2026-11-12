@@ -60,6 +60,9 @@ Source: "..\target\release\portlight.exe"; DestDir: "{app}"; Flags: ignoreversio
 ; The background service for detailed monitoring. Copied to Program Files when
 ; the person turns it on.
 Source: "..\target\release\portlight-service.exe"; DestDir: "{app}"; Flags: ignoreversion
+; Who owns each server's network, from iptoasn.com (public domain). Looked up on
+; the PC; built by scripts\update-owners.ps1.
+Source: "..\target\release\owners.bin"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 
 [Icons]

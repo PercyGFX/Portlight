@@ -7,17 +7,21 @@
 //! Npcap when it is installed (`npcap`).
 
 pub mod adapters;
+pub mod clock;
 pub mod etw;
+pub mod icon;
 pub mod npcap;
 pub mod pipe;
 pub mod process;
 pub mod service;
+pub mod signature;
+pub mod startup;
 mod tcp_table;
 
 use std::io;
 use std::net::SocketAddr;
 
-use portlight_core::{Connection, Platform, ProcessInfo};
+use portlight_core::{Connection, Platform, ProcessInfo, Signature};
 
 pub struct WindowsPlatform;
 
@@ -30,6 +34,10 @@ impl Platform for WindowsPlatform {
         let path = process::path(pid)?;
         let display_name = process::display_name(&path);
         Some(ProcessInfo { path, display_name })
+    }
+
+    fn signature(&self, path: &std::path::Path) -> Signature {
+        signature::check(path)
     }
 }
 

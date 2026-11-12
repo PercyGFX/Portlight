@@ -11,11 +11,30 @@ use serde::{Deserialize, Serialize};
 pub struct Settings {
     /// Install new versions quietly. When off, the window offers the update.
     pub auto_update: bool,
+    /// Keep a daily history of which app talked to which server.
+    pub history_enabled: bool,
+    /// Days of history to keep.
+    pub history_keep_days: u32,
+    /// Closing the window keeps Portlight running in the tray. When off,
+    /// closing the window quits.
+    pub close_to_tray: bool,
+    /// Show a Windows notification when a new app goes online.
+    pub notify_new_apps: bool,
+    /// Ask the DNS server for the names of server addresses. When off,
+    /// Portlight makes no DNS queries of its own.
+    pub reverse_lookups: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { auto_update: true }
+        Self {
+            auto_update: true,
+            history_enabled: true,
+            history_keep_days: 90,
+            close_to_tray: true,
+            notify_new_apps: true,
+            reverse_lookups: true,
+        }
     }
 }
 
@@ -42,5 +61,12 @@ mod tests {
         assert!(Settings::default().auto_update);
         assert!(serde_json::from_str::<Settings>("{}").unwrap().auto_update);
         assert!(!serde_json::from_str::<Settings>(r#"{"autoUpdate":false}"#).unwrap().auto_update);
+    }
+
+    #[test]
+    fn history_is_on_for_90_days_unless_changed() {
+        let old: Settings = serde_json::from_str(r#"{"autoUpdate":true}"#).unwrap();
+        assert!(old.history_enabled);
+        assert_eq!(old.history_keep_days, 90);
     }
 }

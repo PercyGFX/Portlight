@@ -8,6 +8,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use portlight_core::{KnownApps, Tracker};
 
 use crate::collector::Link;
+use crate::history::History;
+use crate::identity::Icons;
 use crate::settings::Settings;
 use crate::update::Release;
 
@@ -20,6 +22,8 @@ pub struct AppState {
     link: Mutex<Link>,
     /// Asks the monitor loop to look for the collector right away.
     reconnect: AtomicBool,
+    pub history: History,
+    pub icons: Icons,
     known_apps_file: PathBuf,
     settings_file: PathBuf,
 }
@@ -36,6 +40,8 @@ impl AppState {
             available_update: Mutex::new(None),
             link: Mutex::new(Link::default()),
             reconnect: AtomicBool::new(false),
+            history: History::open(data_dir.join("history.sqlite")),
+            icons: Icons::default(),
             known_apps_file,
             settings_file,
         }

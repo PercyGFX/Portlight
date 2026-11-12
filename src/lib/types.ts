@@ -5,6 +5,13 @@ export type Protocol = "tcp" | "udp";
 /** Where the monitor's data comes from: the TCP table, or the Portlight Collector service. */
 export type Source = "basic" | "detailed";
 
+/** Who made a program, from its Authenticode signature. Checked on the PC, in the background. */
+export type Signature =
+  | { state: "signed"; publisher: string }
+  | { state: "unsigned" }
+  /** Not checked yet, or no program file. */
+  | { state: "unknown" };
+
 export interface AppView {
   /** Stable identity: the lower-cased executable path. */
   id: string;
@@ -23,6 +30,7 @@ export interface AppView {
   /** This session, including closed connections. 0 in basic mode. */
   bytesSent: number;
   bytesReceived: number;
+  signature: Signature;
 }
 
 export interface ConnView {
@@ -38,6 +46,12 @@ export interface ConnView {
   /** Since Portlight first saw this connection. 0 in basic mode. */
   bytesSent: number;
   bytesReceived: number;
+  /** Friendly network owner, e.g. "Cloudflare, Inc."; "Your home network" for local addresses. */
+  owner: string | null;
+  /** Autonomous system number; null for local or unknown. */
+  asn: number | null;
+  /** ISO 3166-1 alpha-2 of where the network is registered (not where the server sits). */
+  country: string | null;
 }
 
 export type EventKind = "opened" | "closed";
@@ -66,6 +80,91 @@ export interface Snapshot {
   connections: ConnView[];
   events: FlowEvent[];
 }
+
+// ---------- History ----------
+
+/** One server an app talked to on one day. */
+export interface HistoryServer {
+  /** Host name if known, else the IP. */
+  name: string;
+  ip: string;
+  port: number;
+  protocol: Protocol;
+  /** Connections opened that day. */
+  connections: number;
+  bytesSent: number;
+  bytesReceived: number;
+  owner: string | null;
+  country: string | null;
+  /** First and last time that day, Unix milliseconds. */
+  firstSeen: number;
+  lastSeen: number;
+}
+
+export interface HistoryDay {
+  /** "2026-11-12", local time. */
+  day: string;
+  connections: number;
+  bytesSent: number;
+  bytesReceived: number;
+  /** Busiest first; at most 200. */
+  servers: HistoryServer[];
+}
+
+/** One app's totals for one day, for the overview. */
+export interface HistoryAppDay {
+  day: string;
+  appId: string;
+  appName: string;
+  connections: number;
+  servers: number;
+  bytesSent: number;
+  bytesReceived: number;
+}
+
+export interface HistorySettings {
+  enabled: boolean;
+  /** 7, 30, 90 or 365. */
+  keepDays: number;
+  /** Size of the history file on disk. */
+  sizeBytes: number;
+  oldestDay: string | null;
+}
+
+// ---------- Settings and About ----------
+
+export interface AppSettings {
+  autoUpdate: boolean;
+  historyEnabled: boolean;
+  historyKeepDays: number;
+  /** Closing the window keeps Portlight in the tray; off = closing quits. */
+  closeToTray: boolean;
+  /** A Windows notification when a new app goes online. */
+  notifyNewApps: boolean;
+  /** Ask the DNS server for server names; off = Portlight makes no DNS queries of its own. */
+  reverseLookups: boolean;
+  startAtSignIn: boolean;
+  /** Only the installed copy can start at sign-in. */
+  canStartAtSignIn: boolean;
+}
+
+/** The settings `set_settings` can change. */
+export type SettingsChange = Partial<Pick<AppSettings, "autoUpdate" | "closeToTray" | "notifyNewApps" | "reverseLookups" | "startAtSignIn">>;
+
+export interface About {
+  version: string;
+  authors: string;
+  repository: string;
+  license: string;
+  /** When the bundled server owner list was built; Unix milliseconds. */
+  ownersBuiltAt: number | null;
+  /** Network ranges in that list. */
+  ownerRanges: number | null;
+  dataFolder: string;
+}
+
+/** Places `open_link` can open. */
+export type LinkTarget = "repository" | "issues" | "releases" | "changelog" | "license" | "npcap" | "iptoasn" | "dataFolder";
 
 /** Keep in step with UpdateStatus in src-tauri/src/update.rs. */
 export interface UpdateStatus {

@@ -63,3 +63,24 @@ export function elapsed(totalSeconds: number): string {
   const minutes = Math.floor((s % 3600) / 60);
   return hours ? `${hours}:${pad(minutes)}:${pad(s % 60)}` : `${minutes}:${pad(s % 60)}`;
 }
+
+/** 14:03 */
+export function hourMinute(ms: number): string {
+  const d = new Date(ms);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** "Today", "Yesterday", a weekday this past week, then "Nov 3" (with the year when it differs). */
+export function dayLabel(day: string, now = Date.now()): string {
+  const [y, m, d] = day.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const back = Math.round((today.getTime() - date.getTime()) / 86_400_000);
+  if (back === 0) return "Today";
+  if (back === 1) return "Yesterday";
+  if (back > 1 && back < 7) return date.toLocaleDateString("en-US", { weekday: "long" });
+  const options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+  if (date.getFullYear() !== today.getFullYear()) options.year = "numeric";
+  return date.toLocaleDateString("en-US", options);
+}

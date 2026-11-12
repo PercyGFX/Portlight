@@ -2,7 +2,7 @@
 
 use std::io;
 use std::net::{IpAddr, SocketAddr};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -43,6 +43,49 @@ pub trait Platform {
     /// The program behind a process ID. `None` when the OS will not say,
     /// which happens for protected system processes without administrator rights.
     fn process_info(&self, pid: u32) -> Option<ProcessInfo>;
+
+    /// Who signed a program file. Can be slow; the tracker only asks for
+    /// programs it has never seen, when the answer decides whether to alert.
+    fn signature(&self, _path: &Path) -> Signature {
+        Signature::Unknown
+    }
+}
+
+/// Whether a program carries a valid signature from its maker.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "lowercase")]
+pub enum Signature {
+    Signed { publisher: String },
+    Unsigned,
+    /// Not checked yet, or there is no program file to check.
+    #[default]
+    Unknown,
+}
+
+/// Who owns the network an address belongs to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OwnerInfo {
+    /// e.g. "Cloudflare, Inc.", or "Your home network".
+    pub name: String,
+    pub asn: Option<u32>,
+    /// ISO 3166-1 alpha-2 code of the network's registration.
+    pub country: Option<String>,
+}
+
+/// Something one app did with one server since the last reading, for the
+/// history: connections opened and bytes moved.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Activity {
+    pub app_id: String,
+    pub app_name: String,
+    pub protocol: Protocol,
+    pub remote_ip: IpAddr,
+    pub remote_port: u16,
+    pub host: Option<String>,
+    pub opened: u32,
+    pub sent: u64,
+    pub received: u64,
+    pub time: u64,
 }
 
 /// Where the tracker's picture comes from.
@@ -129,6 +172,7 @@ pub struct AppView {
     pub bytes_sent: u64,
     /// Bytes received this session, including connections already closed.
     pub bytes_received: u64,
+    pub signature: Signature,
 }
 
 /// A connection that is open right now.
@@ -147,6 +191,11 @@ pub struct ConnView {
     pub opened_at: u64,
     pub bytes_sent: u64,
     pub bytes_received: u64,
+    /// Who owns the server's network, e.g. "Cloudflare, Inc.".
+    pub owner: Option<String>,
+    pub asn: Option<u32>,
+    /// Where that network is registered (ISO 3166-1 alpha-2).
+    pub country: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]

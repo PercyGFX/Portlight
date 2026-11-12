@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { backend } from "../lib/backend";
+import type { Owner } from "../lib/owners";
 import type { AppView, ConnView, FlowEvent, Snapshot, Source } from "../lib/types";
 
 const MAX_EVENTS = 300;
@@ -18,6 +19,8 @@ export interface Monitor {
   events: FlowEvent[];
   /** Every name learned so far, by remote address. */
   hosts: ReadonlyMap<string, string>;
+  /** Every network owner learned so far, by remote address. */
+  owners: ReadonlyMap<string, Owner>;
   trustApp(id: string): void;
   trustAll(): void;
 }
@@ -31,6 +34,7 @@ interface State {
   connections: ConnView[];
   events: FlowEvent[];
   hosts: Map<string, string>;
+  owners: Map<string, Owner>;
 }
 
 const EMPTY: State = {
@@ -42,6 +46,7 @@ const EMPTY: State = {
   connections: [],
   events: [],
   hosts: new Map(),
+  owners: new Map(),
 };
 
 /** Folds one snapshot into what we already know. */
@@ -62,6 +67,15 @@ function merge(prev: State, snapshot: Snapshot): State {
     }
   }
 
+  let owners = prev.owners;
+  for (const conn of snapshot.connections) {
+    if (!conn.owner && !conn.country) continue;
+    const known = owners.get(conn.remoteIp);
+    if (known && known.owner === conn.owner && known.country === conn.country) continue;
+    if (owners === prev.owners) owners = new Map(prev.owners);
+    owners.set(conn.remoteIp, { owner: conn.owner, country: conn.country });
+  }
+
   return {
     ready: true,
     now: snapshot.now,
@@ -71,6 +85,7 @@ function merge(prev: State, snapshot: Snapshot): State {
     connections: snapshot.connections,
     events,
     hosts,
+    owners,
   };
 }
 

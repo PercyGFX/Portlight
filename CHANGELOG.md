@@ -3,6 +3,33 @@
 All notable changes to Portlight are listed here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-11-12
+
+Know your apps, and remember what they did.
+
+### Added
+
+- **App icons** in the app list, the map, the details and the capture page.
+- **Who made each app**: "Signed by Mozilla Corporation" or "Not signed",
+  checked on your PC without going online.
+- **Updates no longer re-alert.** When an app updates into a new folder
+  (Discord, Slack and many others do), Portlight recognises it by its
+  publisher and program name and keeps it trusted.
+- **Who owns each server and where its network is registered**, such as
+  "Cloudflare · United States", from a public-domain list bundled with
+  Portlight. Nothing is looked up online.
+- **History**: which app talked to which server, how often and how much
+  data, by day. On by default, kept 90 days, stored only on your PC. Turn it
+  off, change how long it is kept, or clear it in Settings.
+- **Settings** in one place: start at sign-in, keep running in the tray,
+  theme (including "match Windows"), new-app notifications and pop-ups,
+  detailed monitoring, history, server name lookups, Npcap and updates.
+- **Learn again**: trust every app you have now and start a fresh two-minute
+  quiet period, for when a burst of alerts arrives at once. Or forget every
+  known app and start over.
+- **About**: version, credits, links, and what's new in each version, inside
+  the app.
+
 ## [0.3.0] - 2026-11-12
 
 Detailed monitoring and packet capture.

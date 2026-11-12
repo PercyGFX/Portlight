@@ -12,7 +12,10 @@ mod collector;
 mod commands;
 mod dns;
 mod export;
+mod history;
+mod identity;
 mod monitor;
+mod owners;
 mod settings;
 mod state;
 mod tray;
@@ -20,7 +23,7 @@ mod update;
 
 use std::sync::Arc;
 
-use tauri::{AppHandle, Manager, WindowEvent};
+use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
 
 use crate::capture::Capture;
 use crate::state::AppState;
@@ -68,6 +71,18 @@ pub fn run() {
             commands::capture_export,
             commands::export_live,
             commands::open_npcap_download,
+            commands::app_icon,
+            commands::app_history,
+            commands::history_summary,
+            commands::history_settings,
+            commands::set_history_settings,
+            commands::clear_history,
+            commands::get_settings,
+            commands::set_settings,
+            commands::learn_again,
+            commands::forget_known_apps,
+            commands::about,
+            commands::open_link,
         ])
         .setup(move |app| {
             if wants_quit {
@@ -92,12 +107,25 @@ pub fn run() {
         .on_window_event(|window, event| {
             // Closing the window keeps Portlight watching from the tray.
             if let WindowEvent::CloseRequested { api, .. } = event {
-                let _ = window.hide();
-                api.prevent_close();
+                let keep_running = window.app_handle().try_state::<AppState>().is_none_or(|s| s.settings().close_to_tray);
+                if keep_running {
+                    let _ = window.hide();
+                    api.prevent_close();
+                } else {
+                    window.app_handle().exit(0);
+                }
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Portlight");
+        .build(tauri::generate_context!())
+        .expect("error while starting Portlight")
+        .run(|app, event| {
+            // Write the last few seconds of history before quitting.
+            if let RunEvent::Exit = event
+                && let Some(state) = app.try_state::<AppState>()
+            {
+                state.history.flush();
+            }
+        });
 }
 
 /// Brings the main window to the front, un-hiding it if needed.

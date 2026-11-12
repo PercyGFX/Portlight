@@ -20,7 +20,7 @@ pub mod wire;
 pub use flows::{FlowTable, NetEvent, NetEventKind, UDP_IDLE_MS, parse_dns_results};
 pub use known_apps::{KnownApp, KnownApps, LEARNING_MS};
 pub use model::{
-    AppView, ConnView, Connection, EventKind, FlowEvent, NewApp, Observation, Observed, Platform, ProcessInfo,
-    ProcessRecord, Protocol, Snapshot, Source,
+    Activity, AppView, ConnView, Connection, EventKind, FlowEvent, NewApp, Observation, Observed, OwnerInfo, Platform,
+    ProcessInfo, ProcessRecord, Protocol, Signature, Snapshot, Source,
 };
 pub use tracker::{SYSTEM_APP_ID, Tracker, Update, describe_process, leaves_this_machine};

@@ -9,11 +9,12 @@
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::io;
 use std::net::IpAddr;
+use std::path::{Path, PathBuf};
 
 use crate::known_apps::{KnownApp, KnownApps};
 use crate::model::{
-    AppView, ConnView, Connection, EventKind, FlowEvent, NewApp, Observation, Observed, Platform, ProcessInfo,
-    Snapshot, Source,
+    Activity, AppView, ConnView, Connection, EventKind, FlowEvent, NewApp, Observation, Observed, OwnerInfo, Platform,
+    ProcessInfo, Signature, Snapshot, Source,
 };
 
 /// All processes the OS will not name are grouped under this one app.
@@ -33,6 +34,7 @@ struct AppRecord {
     total_opened: u64,
     bytes_sent: u64,
     bytes_received: u64,
+    signature: Signature,
 }
 
 struct ConnRecord {
@@ -51,6 +53,12 @@ pub struct Update {
     /// Remote addresses seen for the first time with no site name yet, for
     /// reverse lookups.
     pub new_ips: Vec<IpAddr>,
+    /// Every remote address seen for the first time, for owner lookups.
+    pub new_addresses: Vec<IpAddr>,
+    /// Programs whose signature should be checked in the background.
+    pub check_signatures: Vec<(String, PathBuf)>,
+    /// What each app did with each server, for the history.
+    pub activity: Vec<Activity>,
     /// The known-apps list changed and should be saved.
     pub known_changed: bool,
 }
@@ -67,6 +75,7 @@ pub struct Tracker {
     reverse_names: HashMap<IpAddr, String>,
     /// Goes up whenever a name is learned, so readers can tell when to copy.
     names_version: u64,
+    owners: HashMap<IpAddr, OwnerInfo>,
     seen_ips: HashSet<IpAddr>,
     events: VecDeque<FlowEvent>,
     next_event: u64,
@@ -87,6 +96,7 @@ impl Tracker {
             asked_names: HashMap::new(),
             reverse_names: HashMap::new(),
             names_version: 0,
+            owners: HashMap::new(),
             seen_ips: HashSet::new(),
             events: VecDeque::new(),
             next_event: 1,
@@ -110,6 +120,8 @@ impl Tracker {
         self.source = source;
         let processes: HashMap<u32, ProcessInfo> = processes.iter().map(|p| (p.pid, p.info())).collect();
         let lookup = |pid: u32| processes.get(&pid).cloned().or_else(|| platform.process_info(pid));
+        let sign = |path: &Path| platform.signature(path);
+        let programs = Programs { lookup: &lookup, sign: &sign };
 
         for (ip, name) in names {
             if self.asked_names.get(&ip) != Some(&name) {
@@ -130,13 +142,13 @@ impl Tracker {
         // Ended connections, with their final byte counts.
         for ended in &closed {
             if let Some(record) = self.open.remove(&ended.conn) {
-                self.add_traffic(&record.app_id, record.sent, record.received, ended);
+                self.add_traffic(&record.app_id, record.sent, record.received, ended, false, now, &mut update);
                 self.push_event(EventKind::Closed, &record.app_id, &ended.conn, ended.sent, ended.received, now);
             } else {
                 // Opened and closed between two readings.
-                let app_id = self.app_for(ended.conn.pid, &lookup, now, &mut update);
+                let app_id = self.app_for(ended.conn.pid, &programs, now, &mut update);
                 self.note_ip(ended.conn.remote.ip(), &mut update);
-                self.add_traffic(&app_id, 0, 0, ended);
+                self.add_traffic(&app_id, 0, 0, ended, true, now, &mut update);
                 if let Some(app) = self.apps.get_mut(&app_id) {
                     app.total_opened += 1;
                 }
@@ -160,19 +172,19 @@ impl Tracker {
         for seen in &open {
             if let Some(record) = self.open.get(&seen.conn) {
                 let (app_id, before_sent, before_received) = (record.app_id.clone(), record.sent, record.received);
-                self.add_traffic(&app_id, before_sent, before_received, seen);
+                self.add_traffic(&app_id, before_sent, before_received, seen, false, now, &mut update);
                 if let Some(record) = self.open.get_mut(&seen.conn) {
                     record.sent = record.sent.max(seen.sent);
                     record.received = record.received.max(seen.received);
                 }
                 continue;
             }
-            let app_id = self.app_for(seen.conn.pid, &lookup, now, &mut update);
+            let app_id = self.app_for(seen.conn.pid, &programs, now, &mut update);
             if let Some(app) = self.apps.get_mut(&app_id) {
                 app.total_opened += 1;
             }
             self.note_ip(seen.conn.remote.ip(), &mut update);
-            self.add_traffic(&app_id, 0, 0, seen);
+            self.add_traffic(&app_id, 0, 0, seen, true, now, &mut update);
             if self.primed {
                 self.push_event(EventKind::Opened, &app_id, &seen.conn, 0, 0, now);
             }
@@ -220,6 +232,7 @@ impl Tracker {
                     total_opened: app.total_opened,
                     bytes_sent: app.bytes_sent,
                     bytes_received: app.bytes_received,
+                    signature: app.signature.clone(),
                 }
             })
             .collect();
@@ -230,7 +243,9 @@ impl Tracker {
         let mut connections: Vec<ConnView> = self
             .open
             .iter()
-            .map(|(conn, record)| ConnView {
+            .map(|(conn, record)| {
+                let owner = self.owners.get(&conn.remote.ip());
+                ConnView {
                 id: record.id,
                 app_id: record.app_id.clone(),
                 pid: conn.pid,
@@ -242,7 +257,10 @@ impl Tracker {
                 opened_at: record.opened_at,
                 bytes_sent: record.sent,
                 bytes_received: record.received,
-            })
+                owner: owner.map(|o| o.name.clone()),
+                asn: owner.and_then(|o| o.asn),
+                country: owner.and_then(|o| o.country.clone()),
+            }})
             .collect();
         connections.sort_by_key(|c| c.id);
 
@@ -277,6 +295,34 @@ impl Tracker {
             self.asked_names.insert(ip, name);
             self.names_version += 1;
         }
+    }
+
+    /// Records who owns an address's network.
+    pub fn set_owner(&mut self, ip: IpAddr, owner: OwnerInfo) {
+        self.owners.insert(ip, owner);
+    }
+
+    /// Who owns an address's network, if looked up.
+    pub fn owner_of(&self, ip: IpAddr) -> Option<&OwnerInfo> {
+        self.owners.get(&ip)
+    }
+
+    /// Records the result of a background signature check. Returns true if
+    /// the known-apps list changed and should be saved.
+    pub fn set_signature(&mut self, app_id: &str, signature: Signature) -> bool {
+        let publisher = match &signature {
+            Signature::Signed { publisher } => Some(publisher.clone()),
+            _ => None,
+        };
+        if let Some(app) = self.apps.get_mut(app_id) {
+            app.signature = signature;
+        }
+        self.known.set_publisher(app_id, publisher)
+    }
+
+    /// The program path behind an app, if it has one.
+    pub fn app_path(&self, app_id: &str) -> Option<&str> {
+        self.apps.get(app_id).and_then(|a| a.path.as_deref())
     }
 
     /// The best name known for an address.
@@ -327,61 +373,128 @@ impl Tracker {
         self.known.trust_all()
     }
 
+    /// Trusts every app seen so far and starts a new learning period, for
+    /// when many apps alerted at once and the person knows them all.
+    pub fn learn_again(&mut self, now: u64) {
+        self.trust_all();
+        self.known.learn_again(now);
+    }
+
+    /// Forgets every app Portlight has seen and starts learning again. Apps
+    /// online right now are kept, as trusted.
+    pub fn forget_known_apps(&mut self, now: u64) {
+        self.known.forget_all(now);
+        for (id, app) in self.apps.iter_mut() {
+            app.trusted = true;
+            let publisher = match &app.signature {
+                Signature::Signed { publisher } => Some(publisher.clone()),
+                _ => None,
+            };
+            self.known.insert(id.clone(), KnownApp { name: app.name.clone(), first_seen: now, trusted: true, publisher });
+        }
+    }
+
     pub fn known(&self) -> &KnownApps {
         &self.known
     }
 
     /// Finds, or creates, the app a process belongs to.
-    fn app_for(
-        &mut self,
-        pid: u32,
-        lookup: &dyn Fn(u32) -> Option<ProcessInfo>,
-        now: u64,
-        update: &mut Update,
-    ) -> String {
+    fn app_for(&mut self, pid: u32, programs: &Programs, now: u64, update: &mut Update) -> String {
         if let Some(id) = self.pid_apps.get(&pid) {
             return id.clone();
         }
 
-        let (id, record) = describe(lookup(pid));
+        let (id, record) = describe((programs.lookup)(pid));
         self.pid_apps.insert(pid, id.clone());
         if self.apps.contains_key(&id) {
             return id;
         }
 
         let record = match self.known.get(&id) {
-            Some(known) => AppRecord { first_seen: known.first_seen, trusted: known.trusted, ..record },
+            Some(known) => {
+                if let Some(path) = &record.path {
+                    update.check_signatures.push((id.clone(), PathBuf::from(path)));
+                }
+                AppRecord { first_seen: known.first_seen, trusted: known.trusted, ..record }
+            }
             None => {
-                // First time this app has ever been online.
+                // First time this program has ever been online.
                 let learning = self.known.is_learning(now);
+                // Outside the learning period the signature decides whether
+                // this is news, so check it now rather than in the background.
+                let signature = match (&record.path, learning) {
+                    (Some(path), false) => (programs.sign)(Path::new(path)),
+                    (Some(path), true) => {
+                        update.check_signatures.push((id.clone(), PathBuf::from(path)));
+                        Signature::Unknown
+                    }
+                    (None, _) => Signature::Unknown,
+                };
+                let publisher = match &signature {
+                    Signature::Signed { publisher } => Some(publisher.clone()),
+                    _ => None,
+                };
+                // An update that moved to a new folder: same publisher, same
+                // program name. It keeps the earlier copy's trust, quietly.
+                let earlier = publisher.as_deref().and_then(|p| self.known.same_program(p, &record.exe)).cloned();
+                let trusted = learning || earlier.as_ref().is_some_and(|e| e.trusted);
                 self.known.insert(
                     id.clone(),
-                    KnownApp { name: record.name.clone(), first_seen: now, trusted: learning },
+                    KnownApp { name: record.name.clone(), first_seen: now, trusted, publisher },
                 );
                 update.known_changed = true;
-                if !learning {
+                if !learning && earlier.is_none() {
                     update.new_apps.push(NewApp { id: id.clone(), name: record.name.clone() });
                 }
-                AppRecord { first_seen: now, trusted: learning, ..record }
+                AppRecord { first_seen: earlier.map_or(now, |e| e.first_seen), trusted, signature, ..record }
             }
         };
         self.apps.insert(id.clone(), record);
         id
     }
 
-    /// Queues an address for a reverse lookup the first time it is seen,
-    /// unless an app already looked its name up.
+    /// Notes an address the first time it is seen: for an owner lookup, and
+    /// for a reverse lookup unless an app already looked its name up.
     fn note_ip(&mut self, ip: IpAddr, update: &mut Update) {
-        if self.seen_ips.insert(ip) && !self.asked_names.contains_key(&ip) {
-            update.new_ips.push(ip);
+        if self.seen_ips.insert(ip) {
+            update.new_addresses.push(ip);
+            if !self.asked_names.contains_key(&ip) {
+                update.new_ips.push(ip);
+            }
         }
     }
 
-    /// Adds the bytes a connection carried since it was last counted.
-    fn add_traffic(&mut self, app_id: &str, counted_sent: u64, counted_received: u64, now: &Observed) {
-        if let Some(app) = self.apps.get_mut(app_id) {
-            app.bytes_sent += now.sent.saturating_sub(counted_sent);
-            app.bytes_received += now.received.saturating_sub(counted_received);
+    /// Adds the bytes a connection carried since it was last counted, and
+    /// notes the activity for the history.
+    #[allow(clippy::too_many_arguments)]
+    fn add_traffic(
+        &mut self,
+        app_id: &str,
+        counted_sent: u64,
+        counted_received: u64,
+        seen: &Observed,
+        opened: bool,
+        now: u64,
+        update: &mut Update,
+    ) {
+        let sent = seen.sent.saturating_sub(counted_sent);
+        let received = seen.received.saturating_sub(counted_received);
+        let Some(app) = self.apps.get_mut(app_id) else { return };
+        app.bytes_sent += sent;
+        app.bytes_received += received;
+        if opened || sent > 0 || received > 0 {
+            update.activity.push(Activity {
+                app_id: app_id.to_string(),
+                app_name: app.name.clone(),
+                protocol: seen.conn.protocol,
+                remote_ip: seen.conn.remote.ip(),
+                remote_port: seen.conn.remote.port(),
+                host: self.name_of(seen.conn.remote.ip()).map(str::to_string),
+                opened: u32::from(opened),
+                sent,
+                received,
+                time: now,
+            });
         }
     }
 
@@ -419,6 +532,13 @@ pub fn leaves_this_machine(conn: &Connection) -> bool {
     !ip.is_loopback() && !ip.is_unspecified() && !to_everyone
 }
 
+/// How the tracker learns about programs: who runs a process, and who
+/// signed a program file.
+struct Programs<'a> {
+    lookup: &'a dyn Fn(u32) -> Option<ProcessInfo>,
+    sign: &'a dyn Fn(&Path) -> Signature,
+}
+
 /// Works out an app's identity and name from what the OS reported.
 pub fn describe_process(info: Option<ProcessInfo>) -> (String, String) {
     let (id, record) = describe(info);
@@ -435,6 +555,7 @@ fn describe(info: Option<ProcessInfo>) -> (String, AppRecord) {
         total_opened: 0,
         bytes_sent: 0,
         bytes_received: 0,
+        signature: Signature::Unknown,
     };
 
     let Some(info) = info else {
@@ -471,6 +592,9 @@ mod tests {
     struct FakeOs {
         connections: RefCell<Vec<Connection>>,
         programs: HashMap<u32, (&'static str, Option<&'static str>)>,
+        /// Publisher by lower-cased path; anything else is unsigned.
+        signers: HashMap<String, &'static str>,
+        signature_checks: RefCell<u32>,
     }
 
     impl FakeOs {
@@ -478,6 +602,8 @@ mod tests {
             Self {
                 connections: RefCell::default(),
                 programs: programs.iter().map(|(pid, path, name)| (*pid, (*path, *name))).collect(),
+                signers: HashMap::new(),
+                signature_checks: RefCell::new(0),
             }
         }
 
@@ -505,6 +631,14 @@ mod tests {
                 path: PathBuf::from(path),
                 display_name: name.map(str::to_string),
             })
+        }
+
+        fn signature(&self, path: &Path) -> Signature {
+            *self.signature_checks.borrow_mut() += 1;
+            match self.signers.get(&path.to_string_lossy().to_lowercase()) {
+                Some(publisher) => Signature::Signed { publisher: publisher.to_string() },
+                None => Signature::Unsigned,
+            }
         }
     }
 
@@ -798,5 +932,130 @@ mod tests {
         assert_eq!(snapshot.connections.len(), 1);
         assert_eq!(snapshot.connections[0].protocol, Protocol::Tcp);
         assert!(snapshot.events.iter().any(|e| e.kind == EventKind::Closed && e.protocol == Protocol::Udp));
+    }
+
+    #[test]
+    fn an_update_in_a_new_folder_keeps_its_trust_without_an_alert() {
+        let mut os = FakeOs::with_programs(&[
+            (30, "C:\\Discord\\app-1.0.1\\Discord.exe", Some("Discord")),
+            (31, "C:\\Discord\\app-1.0.2\\Discord.exe", Some("Discord")),
+            (32, "C:\\Temp\\app-1.0.3\\Discord.exe", Some("Discord")),
+        ]);
+        os.signers.insert("c:\\discord\\app-1.0.1\\discord.exe".into(), "Discord Inc.");
+        os.signers.insert("c:\\discord\\app-1.0.2\\discord.exe".into(), "Discord Inc.");
+        let mut tracker = Tracker::new(KnownApps::first_run(0));
+        tracker.poll(&os, AFTER_LEARNING).unwrap();
+
+        // First sighting: a new app, with its publisher checked straight away.
+        os.set(&[(30, "203.0.113.5:443")]);
+        let first = tracker.poll(&os, AFTER_LEARNING + 1).unwrap();
+        assert_eq!(first.new_apps.len(), 1);
+        assert!(tracker.trust("c:\\discord\\app-1.0.1\\discord.exe"));
+
+        // The update moves to a new folder: same publisher and file name.
+        os.set(&[(31, "203.0.113.5:443")]);
+        let update = tracker.poll(&os, AFTER_LEARNING + 2).unwrap();
+        assert!(update.new_apps.is_empty());
+        let app = tracker.snapshot(0, 0).apps.into_iter().find(|a| a.path.as_deref().unwrap().contains("1.0.2")).unwrap();
+        assert!(app.trusted);
+        assert_eq!(app.signature, Signature::Signed { publisher: "Discord Inc.".into() });
+        assert_eq!(app.first_seen, AFTER_LEARNING + 1);
+
+        // A look-alike that isn't signed by Discord is still news.
+        os.set(&[(32, "203.0.113.5:443")]);
+        assert_eq!(tracker.poll(&os, AFTER_LEARNING + 3).unwrap().new_apps.len(), 1);
+    }
+
+    #[test]
+    fn signatures_are_checked_in_the_background_while_learning() {
+        let mut os = os();
+        os.signers.insert("c:\\apps\\chrome\\chrome.exe".into(), "Google LLC");
+        os.set(&[(10, "203.0.113.5:443")]);
+        let mut tracker = Tracker::new(KnownApps::first_run(0));
+
+        let update = tracker.poll(&os, 1).unwrap();
+        assert_eq!(*os.signature_checks.borrow(), 0);
+        assert_eq!(update.check_signatures.len(), 1);
+        let (id, path) = &update.check_signatures[0];
+        assert_eq!(tracker.snapshot(1, 0).apps[0].signature, Signature::Unknown);
+
+        let signature = os.signature(path);
+        assert!(tracker.set_signature(id, signature.clone()));
+        assert_eq!(tracker.snapshot(1, 0).apps[0].signature, signature);
+        assert_eq!(tracker.known().get(id).unwrap().publisher.as_deref(), Some("Google LLC"));
+        // Recording the same answer again changes nothing on disk.
+        assert!(!tracker.set_signature(id, signature));
+    }
+
+    #[test]
+    fn activity_records_opens_and_bytes_for_the_history() {
+        let os = os();
+        let mut tracker = Tracker::new(KnownApps::first_run(0));
+        let conn = tcp(10, 50_001, "203.0.113.5:443");
+
+        let first = tracker.update(detailed(vec![seen(&conn, 100, 1_000)], vec![]), &os, 1);
+        assert_eq!(first.activity.len(), 1);
+        assert_eq!((first.activity[0].opened, first.activity[0].sent, first.activity[0].received), (1, 100, 1_000));
+        assert_eq!(first.new_addresses, vec!["203.0.113.5".parse::<IpAddr>().unwrap()]);
+
+        // Only the new bytes count next time; a quiet reading adds nothing.
+        let second = tracker.update(detailed(vec![seen(&conn, 150, 1_000)], vec![]), &os, 2);
+        assert_eq!((second.activity[0].opened, second.activity[0].sent, second.activity[0].received), (0, 50, 0));
+        assert!(tracker.update(detailed(vec![seen(&conn, 150, 1_000)], vec![]), &os, 3).activity.is_empty());
+
+        // Closing reports the last bytes.
+        let last = tracker.update(detailed(vec![], vec![seen(&conn, 150, 1_200)]), &os, 4);
+        assert_eq!((last.activity[0].received, last.activity[0].app_name.as_str()), (200, "Google Chrome"));
+    }
+
+    #[test]
+    fn owners_reach_connections() {
+        let os = os();
+        os.set(&[(10, "203.0.113.5:443")]);
+        let mut tracker = Tracker::new(KnownApps::first_run(0));
+        tracker.poll(&os, 1).unwrap();
+        let owner = OwnerInfo { name: "Example Networks".into(), asn: Some(64_500), country: Some("NL".into()) };
+        tracker.set_owner("203.0.113.5".parse().unwrap(), owner);
+
+        let conn = &tracker.snapshot(1, 0).connections[0];
+        assert_eq!(conn.owner.as_deref(), Some("Example Networks"));
+        assert_eq!((conn.asn, conn.country.as_deref()), (Some(64_500), Some("NL")));
+    }
+
+    #[test]
+    fn learning_again_trusts_everything_and_quiets_new_apps_for_a_while() {
+        let os = os();
+        let mut tracker = Tracker::new(KnownApps::first_run(0));
+        tracker.poll(&os, AFTER_LEARNING).unwrap();
+        os.set(&[(20, "198.51.100.7:80")]);
+        assert_eq!(tracker.poll(&os, AFTER_LEARNING + 1).unwrap().new_apps.len(), 1);
+
+        let now = AFTER_LEARNING + 2;
+        tracker.learn_again(now);
+        assert!(tracker.snapshot(now, 0).apps.iter().all(|a| a.trusted));
+        assert_eq!(tracker.snapshot(now, 0).learning_seconds_left, 120);
+
+        // A new app during the new learning period is trusted quietly.
+        os.set(&[(20, "198.51.100.7:80"), (10, "203.0.113.5:443")]);
+        let update = tracker.poll(&os, now + 1).unwrap();
+        assert!(update.new_apps.is_empty());
+        assert!(tracker.known().get("c:\\apps\\chrome\\chrome.exe").unwrap().trusted);
+    }
+
+    #[test]
+    fn forgetting_keeps_only_whats_online_now() {
+        let os = os();
+        os.set(&[(10, "203.0.113.5:443")]);
+        let mut tracker = Tracker::new(KnownApps::first_run(0));
+        tracker.poll(&os, 1).unwrap();
+        let mut gone = tracker.known().clone();
+        gone.insert("c:\\old\\gone.exe".into(), KnownApp { name: "Gone".into(), ..KnownApp::default() });
+        let mut tracker = Tracker::new(gone);
+        tracker.poll(&os, 2).unwrap();
+        assert_eq!(tracker.known().len(), 2);
+
+        tracker.forget_known_apps(AFTER_LEARNING);
+        assert_eq!(tracker.known().len(), 1);
+        assert!(tracker.known().is_learning(AFTER_LEARNING + 1));
     }
 }

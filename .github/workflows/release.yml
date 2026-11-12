@@ -53,6 +53,10 @@ jobs:
       - name: Build the background service
         run: cargo build --release --locked -p portlight-collector
 
+      - name: Build the server owner list (iptoasn.com, public domain)
+        shell: pwsh
+        run: scripts\update-owners.ps1
+
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
 

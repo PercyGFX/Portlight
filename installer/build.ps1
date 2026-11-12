@@ -20,6 +20,9 @@ if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 # The background service for detailed monitoring.
 cargo build --release -p portlight-collector
 if ($LASTEXITCODE -ne 0) { throw "Service build failed" }
+# The offline list of who owns which network (downloads about 11 MB).
+& "$root\scripts\update-owners.ps1"
+if ($LASTEXITCODE -ne 0) { throw "Owner list build failed" }
 
 $iscc = @(
     "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",

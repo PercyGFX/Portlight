@@ -7,15 +7,22 @@ import { listen } from "@tauri-apps/api/event";
 
 import { createDemoBackend } from "./demo";
 import type {
+  About,
+  AppSettings,
   CaptureStartOptions,
   CaptureStatus,
   CaptureSupport,
   CollectorStatus,
   ExportFormat,
+  HistoryAppDay,
+  HistoryDay,
+  HistorySettings,
+  LinkTarget,
   LiveExport,
   PacketDetail,
   PacketSelection,
   PacketRow,
+  SettingsChange,
   Snapshot,
   UpdateStatus,
 } from "./types";
@@ -73,6 +80,26 @@ export interface Backend {
   exportLive(what: LiveExport): Promise<string | null>;
   /** Opens the Npcap download page in the browser. */
   openNpcapDownload(): Promise<void>;
+
+  /** The app's icon as a data URL, or null when there is none. */
+  appIcon(appId: string): Promise<string | null>;
+  /** Newest first, only days with activity, up to `days` days back. */
+  appHistory(appId: string, days: number): Promise<HistoryDay[]>;
+  /** Per app per day, for the overview. */
+  historySummary(days: number): Promise<HistoryAppDay[]>;
+  historySettings(): Promise<HistorySettings>;
+  setHistorySettings(enabled: boolean, keepDays: number): Promise<HistorySettings>;
+  clearHistory(): Promise<HistorySettings>;
+
+  getSettings(): Promise<AppSettings>;
+  /** Rejects with a readable message. */
+  setSettings(change: SettingsChange): Promise<AppSettings>;
+  /** Trusts every app seen so far and starts a fresh two-minute learning period. */
+  learnAgain(): Promise<void>;
+  /** Forgets every known app; what is online now stays trusted; starts learning. */
+  forgetKnownApps(): Promise<void>;
+  about(): Promise<About>;
+  openLink(link: LinkTarget): Promise<void>;
 }
 
 /** Minutes ahead of UTC, so exported times match the clock on this PC. */
@@ -110,6 +137,20 @@ const tauriBackend: Backend = {
     invoke<string | null>("capture_export", { format, selection, utcOffsetMinutes: utcOffsetMinutes() }),
   exportLive: (what) => invoke<string | null>("export_live", { what, utcOffsetMinutes: utcOffsetMinutes() }),
   openNpcapDownload: () => invoke("open_npcap_download"),
+
+  appIcon: (appId) => invoke<string | null>("app_icon", { appId }),
+  appHistory: (appId, days) => invoke<HistoryDay[]>("app_history", { appId, days }),
+  historySummary: (days) => invoke<HistoryAppDay[]>("history_summary", { days }),
+  historySettings: () => invoke<HistorySettings>("history_settings"),
+  setHistorySettings: (enabled, keepDays) => invoke<HistorySettings>("set_history_settings", { enabled, keepDays }),
+  clearHistory: () => invoke<HistorySettings>("clear_history"),
+
+  getSettings: () => invoke<AppSettings>("get_settings"),
+  setSettings: (change) => invoke<AppSettings>("set_settings", { change }),
+  learnAgain: () => invoke("learn_again"),
+  forgetKnownApps: () => invoke("forget_known_apps"),
+  about: () => invoke<About>("about"),
+  openLink: (link) => invoke("open_link", { link }),
 };
 
 const insideDesktopApp = "__TAURI_INTERNALS__" in window;

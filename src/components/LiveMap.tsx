@@ -8,12 +8,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 
+import { useAppIcon } from "../hooks/useAppIcon";
 import { useDismiss } from "../hooks/useDismiss";
 import { isLocalAddress } from "../lib/addresses";
 import { plural, rate, shorten } from "../lib/format";
+import { ownerLine, ownerTitle, type Owner } from "../lib/owners";
 import { serviceOf } from "../lib/services";
 import { serverTarget } from "../lib/targets";
 import type { AppView, CaptureTarget, ConnView, EventKind, FlowEvent } from "../lib/types";
+import { AppIcon } from "./AppIcon";
 import { RecordIcon } from "./icons";
 import { AppTile, Cloud, Laptop, Server } from "./iso";
 
@@ -27,6 +30,8 @@ const MAX_APPS = 6;
 const MAX_SERVERS = 5;
 /** Longest label that fits beside a node. */
 const LABEL_CHARS = 21;
+/** The owner line is in smaller type, so a little more fits. */
+const OWNER_CHARS = 27;
 /** Most dots launched from one update, so a burst stays readable. */
 const MAX_BURST = 10;
 /** Most "data is flowing" dots added per second on busy lanes. */
@@ -56,6 +61,8 @@ interface ServerGroup {
   ports: number[];
   /** On the home network, not the internet. */
   local: boolean;
+  /** Who runs the network, when known. */
+  owner: Owner | null;
 }
 
 interface PacketSpec {
@@ -134,12 +141,13 @@ function groupServers(connections: ConnView[], keyOf: (conn: ConnView) => string
   const groups = new Map<string, ServerGroup>();
   for (const conn of connections) {
     const key = keyOf(conn);
-    const group = groups.get(key) ?? { key, host: null, ips: [], count: 0, ports: [], local: true };
+    const group = groups.get(key) ?? { key, host: null, ips: [], count: 0, ports: [], local: true, owner: null };
     group.count += 1;
     group.host = conn.host ?? hosts.get(conn.remoteIp) ?? group.host;
     if (!group.ips.includes(conn.remoteIp)) group.ips.push(conn.remoteIp);
     if (!group.ports.includes(conn.remotePort)) group.ports.push(conn.remotePort);
     group.local = group.local && isLocalAddress(conn.remoteIp);
+    if (!group.owner && (conn.owner || conn.country)) group.owner = { owner: conn.owner, country: conn.country };
     groups.set(key, group);
   }
   return [...groups.values()].sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
@@ -410,10 +418,10 @@ export function LiveMap({ ready, apps, connections, events, hosts, selectedId, p
               }}
             >
               <rect className="node-hit" x="8" y={y - 30} width={APP_X + 22} height="60" rx="10" />
-              <AppTile cx={APP_X} cy={y} />
+              <MapAppTile appId={app.id} cx={APP_X} cy={y} />
               <text className="node-name" x={APP_X - 38} y={y - 2} textAnchor="end">{shorten(app.name, LABEL_CHARS)}</text>
               <text className="node-sub" x={APP_X - 38} y={y + 13} textAnchor="end">
-                {app.trusted ? plural(app.connections, "connection") : "New · not seen before"}
+                {app.trusted ? plural(app.connections, "connection") : down > BUSY_RATE ? "New app" : "New · not seen before"}
                 {down > BUSY_RATE && <tspan className="node-rate"> · ↓ {rate(down)}</tspan>}
               </text>
             </g>
@@ -444,17 +452,27 @@ export function LiveMap({ ready, apps, connections, events, hosts, selectedId, p
         {serverSlots.nodes.map(({ server, y }) => {
           const down = rates.groupDown.get(server.key) ?? 0;
           const where = server.local ? "Home network" : server.ports.slice(0, 2).map((p) => serviceOf(p).label).join(", ");
+          // When owner and country do not both fit, the owner alone (the tooltip has the rest).
+          const fullOwner = server.local ? null : ownerLine(server.owner, server.ips[0]);
+          const owner =
+            fullOwner && fullOwner.length > OWNER_CHARS && server.owner?.owner ? ownerLine({ owner: server.owner.owner, country: null }) : fullOwner;
+          const about = ownerTitle(server.owner, server.ips[0]);
+          // With an owner line the labels move up a little, so all of them fit beside the rack.
+          const top = owner ? y - 8 : y - 2;
           return (
             <g key={server.key} className={`node server-node ${server.local ? "is-local" : ""}`}>
-              <title>{`${server.host ?? server.ips[0]}${server.host ? `\n${server.ips.join(", ")}` : ""}`}</title>
+              <title>{`${server.host ?? server.ips[0]}${server.host ? `\n${server.ips.join(", ")}` : ""}${about ? `\n${about}` : ""}`}</title>
               <Server cx={SERVER_X} cy={y} />
-              <text className="node-name node-host" x={SERVER_X + 38} y={y - 2}>{shorten(server.host ?? server.key, LABEL_CHARS)}</text>
-              <text className="node-sub" x={SERVER_X + 38} y={y + 13}>
+              <text className="node-name node-host" x={SERVER_X + 38} y={top}>{shorten(server.host ?? server.key, LABEL_CHARS)}</text>
+              {owner && (
+                <text className="node-sub node-owner" x={SERVER_X + 38} y={top + 14}>{shorten(owner, OWNER_CHARS)}</text>
+              )}
+              <text className="node-sub" x={SERVER_X + 38} y={top + (owner ? 28 : 15)}>
                 {where}
                 {server.ips.length > 1 && ` · ${server.ips.length} addresses`} · {plural(server.count, "connection")}
               </text>
               {down > BUSY_RATE && (
-                <text className="node-sub node-rate" x={SERVER_X + 38} y={y + 27}>↓ {rate(down)}</text>
+                <text className="node-sub node-rate" x={SERVER_X + 38} y={top + (owner ? 42 : 29)}>↓ {rate(down)}</text>
               )}
             </g>
           );
@@ -492,6 +510,7 @@ export function LiveMap({ ready, apps, connections, events, hosts, selectedId, p
                     setMore(null);
                   }}
                 >
+                  <AppIcon appId={app.id} name={app.name} size={24} />
                   <span className="picker-option-text">
                     <strong>{app.name}</strong>
                     <span>{plural(app.connections, "connection")}</span>
@@ -519,6 +538,9 @@ export function LiveMap({ ready, apps, connections, events, hosts, selectedId, p
                 >
                   <span className="picker-option-text">
                     <strong>{server.host ?? server.key}</strong>
+                    {!server.local && ownerLine(server.owner) && (
+                      <span className="picker-owner" title={ownerTitle(server.owner) ?? undefined}>{ownerLine(server.owner)}</span>
+                    )}
                     <span>
                       {server.local ? "Home network · " : ""}
                       {server.ips.length > 1 ? `${server.ips.length} addresses · ` : server.host ? `${server.ips[0]} · ` : ""}
@@ -534,6 +556,11 @@ export function LiveMap({ ready, apps, connections, events, hosts, selectedId, p
       )}
     </section>
   );
+}
+
+/** An app's tile with its icon standing on it. */
+function MapAppTile({ appId, cx, cy }: { appId: string; cx: number; cy: number }) {
+  return <AppTile cx={cx} cy={cy} icon={useAppIcon(appId)} />;
 }
 
 /** `focus` is null when no app is selected, else whether this lane belongs to it. */

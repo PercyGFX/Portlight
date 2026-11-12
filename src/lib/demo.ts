@@ -4,7 +4,10 @@
 
 import type { Backend } from "./backend";
 import { createDemoCapture } from "./demoCapture";
-import type { AppView, CollectorStatus, ConnView, EventKind, FlowEvent, Protocol, Snapshot, Source, UpdateStatus } from "./types";
+import { createDemoHistory } from "./demoHistory";
+import { demoIcon } from "./demoIcons";
+import { HOME_NETWORK } from "./owners";
+import type { AppSettings, AppView, CollectorStatus, ConnView, EventKind, FlowEvent, Protocol, Signature, Snapshot, Source, UpdateStatus } from "./types";
 
 interface DemoApp {
   id: string;
@@ -19,6 +22,14 @@ interface DemoApp {
   targets: Array<[host: string | null, port: number, protocol?: Protocol]>;
   /** Typical bytes per second received on one connection, for the data counters. */
   rate: number;
+  /** Which made-up icon it has, if any. */
+  icon: string | null;
+  signature: Signature;
+  /** For the made-up history: connections on a typical weekday, weekend activity, days it has been around, extra sites. */
+  daily: number;
+  weekend: number;
+  since: number;
+  extra: number;
 }
 
 const APPS: DemoApp[] = [
@@ -40,6 +51,12 @@ const APPS: DemoApp[] = [
       ["video.example.net", 443, "udp"],
     ],
     rate: 90_000,
+    icon: "firefox",
+    signature: { state: "signed", publisher: "Mozilla Corporation" },
+    daily: 420,
+    weekend: 1.3,
+    since: 40,
+    extra: 16,
   },
   {
     id: "c:\\apps\\code\\code.exe",
@@ -55,6 +72,12 @@ const APPS: DemoApp[] = [
       ["update.code.example.com", 443],
     ],
     rate: 6_000,
+    icon: "code",
+    signature: { state: "signed", publisher: "Microsoft Corporation" },
+    daily: 64,
+    weekend: 0.25,
+    since: 40,
+    extra: 1,
   },
   {
     id: "c:\\apps\\tunes\\tunes.exe",
@@ -71,6 +94,12 @@ const APPS: DemoApp[] = [
       ["living-room-speaker.local", 8009],
     ],
     rate: 40_000,
+    icon: "tunes",
+    signature: { state: "signed", publisher: "Tunes Media Ltd." },
+    daily: 90,
+    weekend: 1.4,
+    since: 40,
+    extra: 0,
   },
   {
     id: "c:\\apps\\chatter\\chatter.exe",
@@ -86,6 +115,12 @@ const APPS: DemoApp[] = [
       ["media.chatter.example", 3478, "udp"],
     ],
     rate: 12_000,
+    icon: "chatter",
+    signature: { state: "signed", publisher: "Chatter Inc." },
+    daily: 70,
+    weekend: 1.1,
+    since: 40,
+    extra: 0,
   },
   {
     id: "c:\\apps\\mail\\mail.exe",
@@ -100,6 +135,12 @@ const APPS: DemoApp[] = [
       ["smtp.mail.example", 587],
     ],
     rate: 2_000,
+    icon: "mail",
+    signature: { state: "signed", publisher: "Microsoft Corporation" },
+    daily: 36,
+    weekend: 0.5,
+    since: 40,
+    extra: 0,
   },
   {
     id: "system",
@@ -115,6 +156,12 @@ const APPS: DemoApp[] = [
       ["time.windows.example", 123, "udp"],
     ],
     rate: 3_000,
+    icon: null,
+    signature: { state: "unknown" },
+    daily: 60,
+    weekend: 0.9,
+    since: 40,
+    extra: 0,
   },
   {
     id: "c:\\games\\launcher\\launcher.exe",
@@ -126,6 +173,12 @@ const APPS: DemoApp[] = [
     limit: 2,
     targets: [["store.games.example", 443]],
     rate: 25_000,
+    icon: "games",
+    signature: { state: "signed", publisher: "Valve Corp." },
+    daily: 18,
+    weekend: 3.2,
+    since: 40,
+    extra: 0,
   },
   {
     id: "c:\\users\\you\\downloads\\photo-sync\\photosync.exe",
@@ -140,8 +193,66 @@ const APPS: DemoApp[] = [
       [null, 443],
     ],
     rate: 60_000,
+    icon: "generic",
+    signature: { state: "unsigned" },
+    daily: 40,
+    weekend: 1,
+    since: 0,
+    extra: 0,
   },
 ];
+
+/** Who runs each made-up server's network: owner, AS number, country. */
+const OWNERS: Record<string, [owner: string, asn: number, country: string]> = {
+  "github.com": ["GitHub, Inc.", 36459, "US"],
+  "api.github.com": ["GitHub, Inc.", 36459, "US"],
+  "developer.mozilla.org": ["Google LLC", 15169, "US"],
+  "en.wikipedia.org": ["Wikimedia Foundation, Inc.", 14907, "US"],
+  "video.example.net": ["Akamai International B.V.", 20940, "NL"],
+  "cdn.example.net": ["Fastly, Inc.", 54113, "US"],
+  "news.example.org": ["OVH SAS", 16276, "FR"],
+  "marketplace.example.com": ["Microsoft Corporation", 8075, "US"],
+  "update.code.example.com": ["Microsoft Corporation", 8075, "US"],
+  "audio.tunes.example": ["Cloudflare, Inc.", 13335, "US"],
+  "api.tunes.example": ["Google LLC", 15169, "US"],
+  "gateway.chatter.example": ["Cloudflare, Inc.", 13335, "US"],
+  "media.chatter.example": ["Amazon.com, Inc.", 16509, "US"],
+  "imap.mail.example": ["Microsoft Corporation", 8075, "US"],
+  "smtp.mail.example": ["Microsoft Corporation", 8075, "US"],
+  "update.windows.example": ["Microsoft Corporation", 8075, "US"],
+  "time.windows.example": ["Microsoft Corporation", 8075, "US"],
+  "store.games.example": ["Valve Corporation", 32590, "US"],
+  "upload.photosync.example": ["Hetzner Online GmbH", 24940, "DE"],
+  "c:\\apps\\tunes\\tunes.exe:4070": ["Hetzner Online GmbH", 24940, "DE"],
+  "c:\\users\\you\\downloads\\photo-sync\\photosync.exe:443": ["OVH SAS", 16276, "FR"],
+};
+
+/** Networks for the extra sites in the made-up history. */
+const POOL: Array<[owner: string, asn: number, country: string]> = [
+  ["Cloudflare, Inc.", 13335, "US"],
+  ["Google LLC", 15169, "US"],
+  ["Fastly, Inc.", 54113, "US"],
+  ["Amazon.com, Inc.", 16509, "US"],
+  ["Akamai International B.V.", 20940, "NL"],
+  ["Hetzner Online GmbH", 24940, "DE"],
+  ["OVH SAS", 16276, "FR"],
+  ["DigitalOcean, LLC", 14061, "US"],
+];
+
+/** Owner fields for a host (or `appId:port` when it has no name). */
+function ownerOf(host: string | null, key: string): Pick<ConnView, "owner" | "asn" | "country"> {
+  if (host?.endsWith(".local")) return { owner: HOME_NETWORK, asn: null, country: null };
+  let entry = OWNERS[host ?? key];
+  if (!entry && host) {
+    let hash = 0;
+    for (const ch of host) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+    entry = POOL[hash % POOL.length];
+  }
+  return entry ? { owner: entry[0], asn: entry[1], country: entry[2] } : { owner: null, asn: null, country: null };
+}
+
+/** How long a signature check takes in the demo. */
+const SIGNATURE_MS = 1600;
 
 const TICK_MS = 500;
 const DOC_RANGES = ["203.0.113", "198.51.100", "192.0.2"];
@@ -183,13 +294,26 @@ export function createDemoBackend(): Backend {
   let nextConn = 1;
   let nextEvent = 1;
   let source = initialSource();
+  /** "Learn again" in Settings starts a fresh learning period. */
+  let learningUntil = 0;
+  const settings: AppSettings = {
+    autoUpdate: true,
+    historyEnabled: true,
+    historyKeepDays: 90,
+    closeToTray: true,
+    notifyNewApps: true,
+    reverseLookups: true,
+    startAtSignIn: false,
+    canStartAtSignIn: false,
+  };
 
   const pick = <T,>(items: T[]): T => items[Math.floor(random() * items.length)];
   const online = (app: DemoApp, now: number) => now - started >= app.appearsAt * 1000;
 
   function open(app: DemoApp, now: number, quiet = false) {
     const [host, port, protocol = "tcp"] = pick(app.targets);
-    const remoteIp = addressFor(host ?? `${app.id}:${port}`);
+    const key = `${app.id}:${port}`;
+    const remoteIp = addressFor(host ?? key);
     if (!firstSeen.has(app.id)) firstSeen.set(app.id, quiet ? now - 86_400_000 * 9 : now);
     // Connections open at the start already have some history behind them.
     const history = quiet ? 20 + random() * 400 : 0;
@@ -205,6 +329,7 @@ export function createDemoBackend(): Backend {
       openedAt: now,
       bytesSent: Math.round(history * app.rate * 0.08),
       bytesReceived: Math.round(history * app.rate),
+      ...ownerOf(host, key),
     };
     connections.push(conn);
     totalOpened.set(app.id, (totalOpened.get(app.id) ?? 0) + 1);
@@ -275,12 +400,14 @@ export function createDemoBackend(): Backend {
         totalOpened: totalOpened.get(app.id) ?? 0,
         bytesSent: closedSent + all.reduce((sum, c) => sum + c.bytesSent, 0),
         bytesReceived: closedReceived + all.reduce((sum, c) => sum + c.bytesReceived, 0),
+        // The signature is checked a moment after the app first shows up.
+        signature: now - Math.max(started, firstSeen.get(app.id) ?? now) < SIGNATURE_MS ? { state: "unknown" } : app.signature,
       });
     });
     apps.sort((a, b) => b.connections - a.connections || a.name.localeCompare(b.name));
     return {
       now,
-      learningSecondsLeft: 0,
+      learningSecondsLeft: Math.max(0, Math.ceil((learningUntil - now) / 1000)),
       source,
       apps,
       connections: visible.map(asSeen),
@@ -291,7 +418,7 @@ export function createDemoBackend(): Backend {
   }
 
   const update: UpdateStatus = {
-    current: "0.3.0",
+    current: "0.4.0",
     autoUpdate: true,
     canInstall: false,
     availableVersion: null,
@@ -302,7 +429,7 @@ export function createDemoBackend(): Backend {
   const collector = (): CollectorStatus => ({
     installed: source === "detailed",
     connected: source === "detailed",
-    version: source === "detailed" ? "0.3.0" : null,
+    version: source === "detailed" ? "0.4.0" : null,
     outdated: false,
     canInstall: true,
     error: null,
@@ -321,6 +448,24 @@ export function createDemoBackend(): Backend {
     const count = Math.max(1, Math.round(app.limit * 0.6));
     for (let i = 0; i < count; i++) open(app, started, true);
   }
+
+  const history = createDemoHistory(
+    APPS.map((app) => ({
+      id: app.id,
+      name: app.name,
+      targets: app.targets,
+      daily: app.daily,
+      weekend: app.weekend,
+      since: app.since,
+      perConnection: app.rate * 45,
+      extra: app.extra,
+    })),
+    (host, key) => {
+      const ip = addressFor(host ?? key);
+      const { owner, country } = ownerOf(host, key);
+      return { ip, owner, country };
+    },
+  );
 
   return {
     demo: true,
@@ -360,6 +505,40 @@ export function createDemoBackend(): Backend {
       const name = what === "flow" ? "connection-history" : what;
       return `C:\\Users\\you\\Documents\\Portlight\\${name}-${stamp}.csv`;
     },
+
+    appIcon: async (appId) => {
+      await wait(120 + random() * 260);
+      return demoIcon(APPS.find((app) => app.id === appId)?.icon ?? null);
+    },
+    ...history,
+
+    getSettings: async () => ({ ...settings, autoUpdate: update.autoUpdate }),
+    setSettings: async (change) => {
+      await wait(120);
+      Object.assign(settings, change);
+      if (change.autoUpdate !== undefined) update.autoUpdate = change.autoUpdate;
+      return { ...settings, autoUpdate: update.autoUpdate };
+    },
+    learnAgain: async () => {
+      trusted.forEach((_, id) => trusted.set(id, true));
+      learningUntil = Date.now() + 120_000;
+    },
+    forgetKnownApps: async () => {
+      // What is online now stays trusted; the rest would alert again.
+      const online = new Set(connections.map((c) => c.appId));
+      trusted.forEach((_, id) => trusted.set(id, online.has(id)));
+      learningUntil = Date.now() + 120_000;
+    },
+    about: async () => ({
+      version: update.current,
+      authors: "PercyGFX",
+      repository: "https://github.com/PercyGFX/portlight",
+      license: "MIT",
+      ownersBuiltAt: new Date(2026, 10, 12).getTime(),
+      ownerRanges: 500_337,
+      dataFolder: String.raw`C:\Users\you\AppData\Roaming\com.portlight.app`,
+    }),
+    openLink: async () => {},
 
     ...createDemoCapture({
       connections: () => connections,

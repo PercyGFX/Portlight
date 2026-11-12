@@ -4,6 +4,8 @@ import { useState } from "react";
 
 import { plural } from "../lib/format";
 import type { AppView } from "../lib/types";
+import { AppIcon } from "./AppIcon";
+import { ShieldIcon } from "./icons";
 
 type Tab = "all" | "online" | "new";
 
@@ -53,12 +55,15 @@ export function AppList({ apps, selectedId, filtered, onSelect }: Props) {
               aria-pressed={app.id === selectedId}
               onClick={() => onSelect(app.id === selectedId ? null : app.id)}
             >
-              <span className={`avatar ${app.connections > 0 ? "is-online" : ""}`} aria-hidden="true">
-                {app.name.charAt(0).toUpperCase()}
-              </span>
+              <AppIcon appId={app.id} name={app.name} online={app.connections > 0} />
               <span className="app-row-text">
                 <span className="app-row-name">
                   <span>{app.name}</span>
+                  {app.signature.state === "unsigned" && (
+                    <span className="unsigned-mark" title="Not signed by its maker">
+                      <ShieldIcon />
+                    </span>
+                  )}
                   {!app.trusted && <span className="tag tag-new">New</span>}
                 </span>
                 <span className="app-row-sub">

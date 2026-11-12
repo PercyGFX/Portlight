@@ -16,6 +16,7 @@ Portlight is four layers, plus a small service that runs beside it. Each layer o
 ├──────────────────────────────────────────────────────────────┤
 │  Core          crates/core/      the rules, pure Rust        │
 │  Packets       crates/packets/   reading packets, pure Rust  │
+│  Owners        crates/geo/       who owns an IP, pure Rust   │
 ├──────────────────────────────────────────────────────────────┤
 │  Platform      crates/platform/  operating-system calls      │
 │                tables, events, pipe, Npcap, service checks   │
@@ -31,6 +32,7 @@ Portlight is four layers, plus a small service that runs beside it. Each layer o
 | Platform | `crates/platform` (`portlight-platform`) | Windows APIs | Rules, UI |
 | Core | `crates/core` (`portlight-core`) | Connections, apps, events, readings, the known-apps file, the collector's message format | Windows APIs, Tauri, clocks, threads |
 | Packets | `crates/packets` (`portlight-packets`) | Packet formats, display filters, pcapng | Windows APIs, Tauri, threads |
+| Owners | `crates/geo` (`portlight-geo`) | The compact owner file: building it from iptoasn.com data and looking addresses up | Windows APIs, Tauri, threads |
 | Collector | `crates/collector` (`portlight-collector`, binary `portlight-service`) | The service lifecycle, the event loop | Rules about apps |
 | Shell | `src-tauri` (`portlight`) | Tauri, threads, the network (DNS lookups, update checks), capture sessions | Rules about apps or connections |
 | UI | `src` | The data shapes the shell sends | Any decision about what is new or trusted |
@@ -58,6 +60,7 @@ Portlight/
 │  │  ├─ wire.rs              the collector's messages (JSON lines)
 │  │  └─ known_apps.rs        apps seen before, saved as JSON
 │  ├─ packets/src/            dissectors per protocol, summaries, display filters, pcapng writer
+│  ├─ geo/src/                owner file format, builder (bin: portlight-owners), lookups
 │  ├─ platform/src/windows/
 │  │  ├─ tcp_table.rs         TCP connections and UDP ports with their process IDs
 │  │  ├─ process.rs           process ID to program path and name
@@ -65,6 +68,9 @@ Portlight/
 │  │  ├─ pipe.rs              the named pipe between collector and window
 │  │  ├─ service.rs           is the collector installed? run with one admin prompt
 │  │  ├─ adapters.rs          network cards: friendly names and addresses
+│  │  ├─ signature.rs         who signed a program (offline Authenticode check)
+│  │  ├─ icon.rs              a program's icon as RGBA pixels
+│  │  ├─ clock.rs             the local time zone, for history days
 │  │  └─ npcap.rs             packet capture through Npcap, loaded at run time
 │  ├─ collector/src/
 │  │  ├─ main.rs              service entry point and commands
@@ -80,6 +86,10 @@ Portlight/
 │     ├─ monitor.rs           the half-second loop; basic or detailed feed
 │     ├─ collector.rs         the collector's feed; install and remove it
 │     ├─ capture.rs           capture sessions: record, match to apps, filter, save
+│     ├─ identity.rs          background signature checks; icons as PNG data URLs
+│     ├─ owners.rs            server owner lookups from owners.bin
+│     ├─ history.rs           daily history in SQLite
+│     ├─ export.rs            live view as CSV
 │     ├─ dns.rs               background reverse lookups
 │     ├─ commands.rs          calls the window can make
 │     ├─ tray.rs              tray icon and menu
@@ -91,6 +101,7 @@ Portlight/
 │  ├─ hooks/                  useMonitor, useCapture, useCollector, useUpdates, useTheme, useHotkeys
 │  ├─ lib/                    backend adapter, demo data, types, text helpers
 │  └─ styles/                 tokens.css (colours, sizes), app.css (components)
+├─ scripts/update-owners.ps1   downloads iptoasn.com data and builds owners.bin
 ├─ installer/                 Inno Setup script and local build script
 ├─ .github/workflows/         CI and release pipelines
 └─ docs/
@@ -136,9 +147,17 @@ useMonitor hook     (UI)     merges the snapshot into React state
 - First message: `Hello { version, protocol, names }`. Then a `Reading` twice a second. A window that falls far behind is disconnected and reconnects.
 - Errors go to `C:\ProgramData\Portlight\collector.log`. `portlight-service console` runs the same loop in a console for debugging (as administrator).
 
+### App identity, owners and history
+
+- **Signatures.** When the tracker meets a program it has never seen, outside the learning period, it checks the signature straight away (the answer decides whether to alert). Every other program is checked once in the background by `identity.rs`. Checks never go online. The publisher is saved in `known-apps.json`.
+- **Owners.** Every address seen for the first time is looked up in `owners.bin` (loaded into memory once; each lookup is a binary search, well under a microsecond). Private and link-local addresses are "Your home network". Owners reach the window on each `ConnView`.
+- **History.** Each update reports `activity`: connections opened and bytes moved per app and server. `history.rs` adds these up per local day in memory and writes them to SQLite every 15 seconds (and when Portlight quits), pruning days past the limit every few hours.
+- **Icons** are read on request (`app_icon`), converted to PNG, cached per app, and sent as `data:` URLs, which the content security policy allows.
+
 ### What counts as a new app
 
 - An app is identified by the lower-cased path of its program file.
+- A program at a new path whose publisher signature and file name match a known app is that app updated: it keeps its trust and raises no alert.
 - `KnownApps` is the list of every app seen online, saved to `known-apps.json`.
 - On the very first run the list starts a two-minute **learning period**: apps seen then are recorded as trusted, with no alert.
 - After that, an app not in the list is recorded as untrusted and reported as new, once. Trusting it updates the list.
@@ -173,6 +192,12 @@ The commands are in `src-tauri/src/commands.rs`:
 | `capture_export` | Save chosen packets (all, shown, selected, a range) as pcapng, CSV, text or JSON |
 | `capture_save`, `capture_export_csv`, `open_npcap_download` | Shortcuts for the common saves, and help |
 | `export_live` | The apps, open connections or connection history as CSV |
+| `app_icon` | An app's icon as a PNG `data:` URL |
+| `app_history`, `history_summary` | Daily history for one app, or every app's daily totals |
+| `history_settings`, `set_history_settings`, `clear_history` | History on or off, how long it is kept, clearing it |
+| `get_settings`, `set_settings` | The Settings page: sign-in start, tray, notifications, name lookups, auto-update |
+| `learn_again`, `forget_known_apps` | Trust everything now and learn for two minutes; or start over |
+| `about`, `open_link` | The About section, and opening Portlight's own fixed web pages or data folder |
 
 Rust sends the window four events: `monitor:tick` (a `Snapshot`), `update:status`, `collector:status` and `capture:status`.
 

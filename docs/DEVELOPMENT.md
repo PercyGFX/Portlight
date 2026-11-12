@@ -56,9 +56,13 @@ Put the rule in `crates/core` and write its test first, using the fake system at
 
 Install [Npcap](https://npcap.com/#download) with its default options. In a browser, `npm run dev` plays an invented capture (`src/lib/demoCapture.ts`), which is how the capture page is developed and screenshotted.
 
+### Working on server owners
+
+The owner list is not in git (it is about 10 MB and changes hourly upstream). Run `scripts\update-owners.ps1` once: it downloads the iptoasn.com data and writes `owners.bin` into `target\debug` and `target\release`, next to the exe, where Portlight looks for it. Without it, owners are simply not shown. `cargo run -p portlight-geo --bin portlight-owners -- lookup target\debug\owners.bin 1.1.1.1` checks it.
+
 ### Where Portlight keeps its files
 
-`%APPDATA%\com.portlight.app\known-apps.json` and `settings.json`. Delete `known-apps.json` to see the first-run learning period again.
+`%APPDATA%\com.portlight.app\known-apps.json`, `settings.json` and `history.sqlite`. Delete `known-apps.json` to see the first-run learning period again.
 
 ## Conventions
 

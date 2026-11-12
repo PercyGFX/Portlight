@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useAppIcon } from "../../hooks/useAppIcon";
 import { backend } from "../../lib/backend";
 import { shorten } from "../../lib/format";
 import { FAMILY_LABELS, familyOf, type Family } from "../../lib/protocols";
@@ -36,9 +37,15 @@ interface Props {
   shown: number;
   /** Changes when the shown list is a different list. */
   listKey: string;
+  /** The app on the left, for its icon; null when it is this PC. */
+  appId: string | null;
+  /** "Cloudflare · United States" for a server on the right, and the longer words for its tooltip. */
+  owner: string | null;
+  ownerAbout: string | null;
 }
 
-export function ConversationStrip({ target, cards, running, shown, listKey }: Props) {
+export function ConversationStrip({ target, cards, running, shown, listKey, appId, owner, ownerAbout }: Props) {
+  const icon = useAppIcon(appId);
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(900);
   const [dots, setDots] = useState<Dot[]>([]);
@@ -94,6 +101,7 @@ export function ConversationStrip({ target, cards, running, shown, listKey }: Pr
   const laneStart = left + LANE_INSET;
   const laneEnd = right - LANE_INSET;
   const ends = describeEnds(target, cards);
+  const rightOwner = ends.right.kind === "server" ? owner : null;
 
   return (
     <div className={`strip ${running ? "is-running" : ""}`} ref={box}>
@@ -111,7 +119,7 @@ export function ConversationStrip({ target, cards, running, shown, listKey }: Pr
         <text className="strip-lane-label" x={(laneStart + laneEnd) / 2} y={IN_Y + 15} textAnchor="middle">← received</text>
 
         <g className="node" transform={`translate(${left} ${HEIGHT / 2 - 2}) scale(${ends.left.kind === "pc" ? 0.6 : 0.85})`}>
-          {ends.left.kind === "pc" ? <Laptop cx={0} cy={0} /> : <AppTile cx={0} cy={0} />}
+          {ends.left.kind === "pc" ? <Laptop cx={0} cy={0} /> : <AppTile cx={0} cy={0} icon={icon} />}
         </g>
         <text className="node-name" x={left + LABEL_GAP} y={HEIGHT / 2 - 2}>{shorten(ends.left.title, 22)}</text>
         <text className="node-sub" x={left + LABEL_GAP} y={HEIGHT / 2 + 14}>{shorten(ends.left.sub, 28)}</text>
@@ -119,10 +127,16 @@ export function ConversationStrip({ target, cards, running, shown, listKey }: Pr
         <g className="node" transform={`translate(${right} ${HEIGHT / 2 - (ends.right.kind === "server" ? 6 : 0)}) scale(${ends.right.kind === "server" ? 0.62 : 0.78})`}>
           {ends.right.kind === "server" ? <Server cx={0} cy={0} /> : <Cloud cx={0} cy={0} />}
         </g>
-        <text className={`node-name ${ends.right.kind === "server" ? "node-host" : ""}`} x={right - LABEL_GAP - 4} y={HEIGHT / 2 - 2} textAnchor="end">
+        <text className={`node-name ${ends.right.kind === "server" ? "node-host" : ""}`} x={right - LABEL_GAP - 4} y={HEIGHT / 2 - (rightOwner ? 9 : 2)} textAnchor="end">
           {shorten(ends.right.title, 24)}
         </text>
-        <text className="node-sub" x={right - LABEL_GAP - 4} y={HEIGHT / 2 + 14} textAnchor="end">{shorten(ends.right.sub, 30)}</text>
+        {rightOwner && (
+          <text className="node-sub node-owner" x={right - LABEL_GAP - 4} y={HEIGHT / 2 + 6} textAnchor="end">
+            {ownerAbout && <title>{ownerAbout}</title>}
+            {shorten(rightOwner, 36)}
+          </text>
+        )}
+        <text className="node-sub" x={right - LABEL_GAP - 4} y={HEIGHT / 2 + (rightOwner ? 21 : 14)} textAnchor="end">{shorten(ends.right.sub, 30)}</text>
 
         {dots.map((dot) => (
           <StripDot key={dot.id} dot={dot} from={dot.out ? laneStart : laneEnd} to={dot.out ? laneEnd : laneStart} y={dot.out ? OUT_Y : IN_Y} onDone={removeDot} />

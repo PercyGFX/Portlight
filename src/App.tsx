@@ -6,6 +6,7 @@ import { CollectorNotice } from "./components/CollectorNotice";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { FlowTable } from "./components/FlowTable";
 import { LiveMap } from "./components/LiveMap";
+import { SettingsPage, type SettingsSection } from "./components/settings/SettingsPage";
 import { Sidebar } from "./components/Sidebar";
 import { Toasts } from "./components/Toasts";
 import { Topbar } from "./components/Topbar";
@@ -20,7 +21,7 @@ import { countdown } from "./lib/format";
 import { EVERYTHING } from "./lib/targets";
 import type { CaptureTarget, FlowEvent } from "./lib/types";
 
-type View = "monitor" | "capture";
+type View = "monitor" | "capture" | "settings";
 
 /** How long the old page takes to step out before the new one steps in. */
 const LEAVE_MS = 170;
@@ -30,7 +31,8 @@ const LEAVE_MS = 170;
 // page, which replaces the whole window while it is open.
 export default function App() {
   const monitor = useMonitor();
-  const [theme, setTheme] = useTheme();
+  const theme = useTheme();
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("general");
   const updates = useUpdates();
   const collector = useCollector();
   const capture = useCapture();
@@ -128,6 +130,29 @@ export default function App() {
     });
   }, [frozen, monitor.events, monitor.hosts, clearedUpTo, selectedId, needle]);
 
+  const openSettings = useCallback(
+    (section?: SettingsSection) => {
+      if (section) setSettingsSection(section);
+      go("settings");
+    },
+    [go],
+  );
+
+  if (view === "settings") {
+    return (
+      <SettingsPage
+        section={settingsSection}
+        theme={theme}
+        updates={updates}
+        collector={collector}
+        capture={capture}
+        leaving={leaving}
+        onSection={setSettingsSection}
+        onBack={() => go("monitor")}
+      />
+    );
+  }
+
   if (view === "capture") {
     return (
       <CapturePage
@@ -136,6 +161,7 @@ export default function App() {
         apps={monitor.apps}
         connections={monitor.connections}
         hosts={monitor.hosts}
+        owners={monitor.owners}
         leaving={leaving}
         autoStart={autoStart}
         onAutoStarted={clearAutoStart}
@@ -150,13 +176,13 @@ export default function App() {
       <Sidebar
         query={query}
         searchRef={searchRef}
-        theme={theme}
+        theme={theme.theme}
         updates={updates}
-        collector={collector}
         capture={capture.status}
         onOpenCapture={() => openCapture()}
+        onOpenSettings={openSettings}
         onQuery={setQuery}
-        onTheme={setTheme}
+        onTheme={theme.setChoice}
       >
         <AppList apps={listedApps} selectedId={selectedId} filtered={needle !== ""} onSelect={setSelectedId} />
       </Sidebar>
@@ -199,6 +225,7 @@ export default function App() {
         <FlowTable
           events={shownEvents}
           hosts={monitor.hosts}
+          owners={monitor.owners}
           scope={selected?.name ?? null}
           paused={paused}
           onTogglePause={togglePause}
@@ -212,10 +239,12 @@ export default function App() {
         apps={monitor.apps}
         connections={monitor.connections}
         hosts={monitor.hosts}
+        owners={monitor.owners}
         now={monitor.now}
         source={monitor.source}
         onTrust={monitor.trustApp}
         onBack={() => setSelectedId(null)}
+        onSelect={setSelectedId}
         onCapture={openCapture}
       />
 

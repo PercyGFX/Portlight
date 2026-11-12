@@ -11,6 +11,7 @@ use crate::capture::{
     self, Capture, CaptureStartOptions, CaptureStatus, CaptureSupport, ExportFormat, PacketDetail, PacketRow, Selection,
 };
 use crate::export::LiveExport;
+use crate::history::{HistoryAppDay, HistoryDay, HistorySettings};
 use crate::collector::{self, CollectorStatus};
 use crate::state::{AppState, now_ms};
 use crate::update::{self, UpdateStatus};
@@ -235,4 +236,200 @@ fn save_as(
     let path = chosen.into_path().map_err(|e| e.to_string())?;
     write(&path).map_err(|e| format!("Could not save {}: {e}", path.display()))?;
     Ok(Some(path.display().to_string()))
+}
+
+// ---------- App identity and history ----------
+
+/// An app's icon as a `data:image/png;base64,...` URL, or nothing.
+#[tauri::command]
+pub async fn app_icon(app: AppHandle, app_id: String) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let path = state.tracker().app_path(&app_id).map(std::path::PathBuf::from);
+        state.icons.get(&app_id, path.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// One app's history, newest day first.
+#[tauri::command]
+pub async fn app_history(app: AppHandle, app_id: String, days: u32) -> Result<Vec<HistoryDay>, String> {
+    tauri::async_runtime::spawn_blocking(move || app.state::<AppState>().history.app_days(&app_id, days.min(366)))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Every app's totals per day.
+#[tauri::command]
+pub async fn history_summary(app: AppHandle, days: u32) -> Result<Vec<HistoryAppDay>, String> {
+    tauri::async_runtime::spawn_blocking(move || app.state::<AppState>().history.summary(days.min(366)))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn history_settings(state: State<'_, AppState>) -> HistorySettings {
+    let settings = state.settings();
+    state.history.settings(settings.history_enabled, settings.history_keep_days)
+}
+
+/// Turns the history on or off and sets how long it is kept.
+#[tauri::command]
+pub fn set_history_settings(state: State<'_, AppState>, enabled: bool, keep_days: u32) -> HistorySettings {
+    let keep_days = keep_days.clamp(1, 3650);
+    state.update_settings(|settings| {
+        settings.history_enabled = enabled;
+        settings.history_keep_days = keep_days;
+    });
+    if !enabled {
+        state.history.drop_pending();
+    }
+    state.history.prune_now(keep_days);
+    state.history.settings(enabled, keep_days)
+}
+
+/// Deletes the whole history.
+#[tauri::command]
+pub fn clear_history(state: State<'_, AppState>) -> HistorySettings {
+    state.history.clear();
+    let settings = state.settings();
+    state.history.settings(settings.history_enabled, settings.history_keep_days)
+}
+
+// ---------- Settings and About ----------
+
+/// Everything the Settings page shows. Keep in step with src/lib/types.ts.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSettings {
+    pub auto_update: bool,
+    pub history_enabled: bool,
+    pub history_keep_days: u32,
+    pub close_to_tray: bool,
+    pub notify_new_apps: bool,
+    pub reverse_lookups: bool,
+    pub start_at_sign_in: bool,
+    /// Only the installed copy can start at sign-in.
+    pub can_start_at_sign_in: bool,
+}
+
+/// Any subset of the settings to change.
+#[derive(serde::Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SettingsChange {
+    pub auto_update: Option<bool>,
+    pub close_to_tray: Option<bool>,
+    pub notify_new_apps: Option<bool>,
+    pub reverse_lookups: Option<bool>,
+    pub start_at_sign_in: Option<bool>,
+}
+
+fn app_settings(state: &AppState) -> AppSettings {
+    let settings = state.settings();
+    AppSettings {
+        auto_update: settings.auto_update,
+        history_enabled: settings.history_enabled,
+        history_keep_days: settings.history_keep_days,
+        close_to_tray: settings.close_to_tray,
+        notify_new_apps: settings.notify_new_apps,
+        reverse_lookups: settings.reverse_lookups,
+        start_at_sign_in: portlight_platform::startup::is_enabled(),
+        can_start_at_sign_in: update::running_installed_copy(),
+    }
+}
+
+#[tauri::command]
+pub fn get_settings(state: State<'_, AppState>) -> AppSettings {
+    app_settings(&state)
+}
+
+#[tauri::command]
+pub fn set_settings(state: State<'_, AppState>, change: SettingsChange) -> Result<AppSettings, String> {
+    if let Some(enabled) = change.start_at_sign_in {
+        if enabled && !update::running_installed_copy() {
+            return Err("Only the installed copy of Portlight can start when you sign in.".into());
+        }
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        portlight_platform::startup::set(enabled, &format!("\"{}\" --background", exe.display()))
+            .map_err(|e| format!("Windows did not allow the change: {e}"))?;
+    }
+    state.update_settings(|settings| {
+        if let Some(v) = change.auto_update {
+            settings.auto_update = v;
+        }
+        if let Some(v) = change.close_to_tray {
+            settings.close_to_tray = v;
+        }
+        if let Some(v) = change.notify_new_apps {
+            settings.notify_new_apps = v;
+        }
+        if let Some(v) = change.reverse_lookups {
+            settings.reverse_lookups = v;
+        }
+    });
+    Ok(app_settings(&state))
+}
+
+/// Trusts every app seen so far and starts a new two-minute learning period.
+#[tauri::command]
+pub fn learn_again(state: State<'_, AppState>) {
+    let mut tracker = state.tracker();
+    tracker.learn_again(now_ms());
+    state.save_known_apps(&tracker);
+}
+
+/// Forgets every app Portlight has seen and starts learning again.
+#[tauri::command]
+pub fn forget_known_apps(state: State<'_, AppState>) {
+    let mut tracker = state.tracker();
+    tracker.forget_known_apps(now_ms());
+    state.save_known_apps(&tracker);
+}
+
+/// What the About section shows. Keep in step with src/lib/types.ts.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct About {
+    pub version: String,
+    pub authors: String,
+    pub repository: String,
+    pub license: String,
+    /// When the server owner list was built (Unix ms), if there is one.
+    pub owners_built_at: Option<u64>,
+    pub owner_ranges: Option<usize>,
+    pub data_folder: String,
+}
+
+#[tauri::command]
+pub fn about(app: AppHandle) -> About {
+    let info = crate::owners::list_info();
+    About {
+        version: env!("CARGO_PKG_VERSION").into(),
+        authors: env!("CARGO_PKG_AUTHORS").replace(':', ", "),
+        repository: env!("CARGO_PKG_REPOSITORY").into(),
+        license: env!("CARGO_PKG_LICENSE").into(),
+        owners_built_at: info.map(|(at, _)| at * 1000),
+        owner_ranges: info.map(|(_, ranges)| ranges),
+        data_folder: app.path().app_data_dir().map(|p| p.display().to_string()).unwrap_or_default(),
+    }
+}
+
+/// Opens one of Portlight's own web pages, or its data folder. Only these
+/// fixed places can be opened, never an address from the window.
+#[tauri::command]
+pub fn open_link(app: AppHandle, link: String) -> Result<(), String> {
+    let repository = env!("CARGO_PKG_REPOSITORY");
+    let target = match link.as_str() {
+        "repository" => repository.to_string(),
+        "issues" => format!("{repository}/issues"),
+        "releases" => format!("{repository}/releases"),
+        "changelog" => format!("{repository}/blob/main/CHANGELOG.md"),
+        "license" => format!("{repository}/blob/main/LICENSE"),
+        "npcap" => "https://npcap.com/#download".into(),
+        "iptoasn" => "https://iptoasn.com/".into(),
+        "dataFolder" => app.path().app_data_dir().map_err(|e| e.to_string())?.display().to_string(),
+        _ => return Err(format!("Unknown link: {link}")),
+    };
+    portlight_platform::service::open_url(&target).map_err(|e| e.to_string())
 }

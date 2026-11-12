@@ -42,13 +42,19 @@ function originFor(cx: number, cy: number, a: number, b: number): [number, numbe
   return [cx - ((a - b) / 2) * COS, cy - ((a + b) / 2) * SIN];
 }
 
-/** A flat tile: one app. */
-export function AppTile({ cx, cy }: { cx: number; cy: number }) {
+/** A flat tile: one app. With an icon, the icon stands on the tile. */
+export function AppTile({ cx, cy, icon = null }: { cx: number; cy: number; icon?: string | null }) {
   const [ox, oy] = originFor(cx, cy + 5, 34, 34);
   return (
     <g className="iso">
       <Box ox={ox} oy={oy} size={[34, 34, 9]} />
       <polygon className="iso-detail" points={project(ox, oy, [[10, 10, 9], [24, 10, 9], [24, 24, 9], [10, 24, 9]])} />
+      {icon && (
+        <>
+          <ellipse className="iso-icon-shadow" cx={cx} cy={cy - 3} rx="10" ry="4" />
+          <image className="iso-icon" href={icon} x={cx - 12} y={cy - 27} width="24" height="24" />
+        </>
+      )}
     </g>
   );
 }

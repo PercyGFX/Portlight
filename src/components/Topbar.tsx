@@ -4,7 +4,9 @@ import { useCallback, useRef, useState } from "react";
 
 import { useDismiss } from "../hooks/useDismiss";
 import { plural } from "../lib/format";
+import { signatureLine } from "../lib/owners";
 import type { AppView, Source } from "../lib/types";
+import { AppIcon } from "./AppIcon";
 import { BellIcon, CheckIcon } from "./icons";
 
 interface Props {
@@ -104,8 +106,16 @@ function Alerts({ newApps, onSelect, onTrust, onTrustAll }: AlertsProps) {
                     setOpen(false);
                   }}
                 >
-                  <strong>{app.name}</strong>
-                  <span>{app.path ?? "System process"}</span>
+                  <AppIcon appId={app.id} name={app.name} size={28} />
+                  <span className="menu-app-text">
+                    <strong>{app.name}</strong>
+                    {signatureLine(app.signature) && (
+                      <span className={`menu-app-maker ${app.signature.state === "unsigned" ? "is-unsigned" : ""}`}>
+                        {signatureLine(app.signature)}
+                      </span>
+                    )}
+                    <span className="menu-app-path">{app.path ?? "System process"}</span>
+                  </span>
                 </button>
                 <button className="button" onClick={() => onTrust(app.id)}>
                   <CheckIcon /> Trust

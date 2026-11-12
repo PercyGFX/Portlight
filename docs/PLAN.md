@@ -2,7 +2,7 @@
 
 What Portlight is for, what exists today, what comes next, and the decisions made along the way. Update this file when a milestone lands or a decision changes.
 
-Last updated: 12 November 2026, version 0.3.0.
+Last updated: 12 November 2026, version 0.4.0.
 
 ## The idea
 
@@ -31,6 +31,10 @@ One limit applies to every tool of this kind: most traffic is encrypted (HTTPS),
 | Detailed monitoring (0.3.0) | A small Windows service, **Portlight Collector**, reads ETW events and streams them over a local named pipe | Reading the events needs administrator rights. A service keeps the window unprivileged, installs with one prompt from inside the app, and keeps the basic installer prompt-free. The service only collects; every rule stays in the window |
 | Where the service runs from | Copied to `Program Files\Portlight` | It runs as SYSTEM, so its program must not sit in a folder the user (or any program they run) can write to |
 | Packet capture order | Moved ahead of blocking | Seeing packets per app was the most asked-for feature; it does not depend on blocking |
+| App identity (0.4.0) | Still the program path, plus the publisher's Authenticode signature: a new path with the same publisher and program name is the same app | Paths keep unsigned apps distinct; signatures can't be forged, so an update that moves folders keeps its trust while a look-alike does not |
+| Signature checks | Offline: no revocation lists fetched | Keeps the "nothing leaves your PC" promise; the cost is that a certificate revoked after signing still counts |
+| Server owners (0.4.0) | iptoasn.com data (public domain), converted to a compact file shipped in the installer and refreshed with each release | Free to redistribute, one file for owner and country, and every lookup stays on the PC. The country is where the network is registered, which is honest about what the data says |
+| History (0.4.0) | SQLite (bundled), daily totals per app and server, on by default for 90 days | Small, fast and queryable; daily totals answer "what did this app talk to" without storing anything like a packet log |
 | Capture design | Npcap loaded at run time; capture by app, server, site name or connection; Wireshark-style display filters; pcapng export | Wireshark captures by network card and needs filter syntax. Portlight captures what you clicked and writes the filter for you, while still speaking Wireshark's language for those who know it |
 
 ## What is built
@@ -61,6 +65,19 @@ One limit applies to every tool of this kind: most traffic is encrypted (HTTPS),
   - Save as pcapng for Wireshark (with the app name as each packet's comment), or export the list as CSV or the full breakdown as text or JSON. All packets, only the shown ones, the selected one or a range.
   - Animated: a strip above the list shows packets travelling between this PC and what is being captured.
   - Npcap is detected; when it is missing, Portlight explains and links to it.
+### 0.4.0: app identity and history (Milestone 3)
+
+- **App icons** everywhere an app appears.
+- **Publisher signatures**, checked offline (embedded and Windows catalog signatures): "Signed by …" or "Not signed".
+- **Updates no longer re-alert**: a new program path with the same publisher and program name inherits the earlier copy's trust.
+- **Server owner and country** from the bundled iptoasn.com list (public domain); local addresses show as "Your home network".
+- **History** in SQLite: daily totals per app and server (connections, data, first and last time), 90 days by default, can be turned off and cleared.
+- **Settings page**: start at sign-in, close to tray, theme (light, dark, match Windows), new-app notifications and pop-ups, Learn again, forget known apps, detailed monitoring, history, reverse name lookups, Npcap status, updates.
+- **About**: version, author, links, credits, and the changelog shown inside the app, with the update button.
+- **Port names**: Cloudflare Tunnel, STUN, Remote Desktop, SSH and other common ports are named in the connection flow.
+
+### 0.3.0 (continued)
+
 - **Live view**
   - The map groups servers by site name, keeps local-network devices apart from the internet, opens the hidden apps and servers behind its "+N" bubbles, and, with detailed monitoring, draws busier lanes heavier with a live data rate.
   - Export the apps, open connections or connection history (last 2,000 events) as CSV.
@@ -71,7 +88,9 @@ One limit applies to every tool of this kind: most traffic is encrypted (HTTPS),
 
 | Limit | Cause | Fixed by |
 |---|---|---|
-| An app that updates into a new folder alerts again | Apps are identified by program path | Milestone 3 (identify by publisher signature) |
+| An unsigned app that updates into a new folder alerts again | Without a signature, the program path is all there is | Nothing planned; most apps that move folders are signed |
+| History counts bytes of a long connection on the day it closes or is measured, and connections open when Portlight starts count as opened that day | Totals are kept per day, not per moment | Good enough for daily totals |
+| Server countries are where networks are registered, not where servers stand | The bundled data is about networks (autonomous systems) | A geolocation list could be added later, with attribution |
 | In basic mode: short connections missed, TCP only, no bytes, reverse-DNS names, system processes grouped | No administrator rights | Turning on detailed monitoring |
 | Name lookups appear under "Windows system services", not the app that asked | Windows' DNS Client service makes lookups on apps' behalf | Could be joined back using the DNS-Client event's process ID (later) |
 | Programs that run for only a moment may be unnamed | The collector looks a process up within 0.1 s of its first event; very short-lived ones can be gone | Kernel process events (later) |
@@ -88,15 +107,15 @@ Each milestone ends with something that works.
 | 1 | Monitoring MVP | Done (0.1.0, 0.2.0) |
 | 2 | Event-based source (Portlight Collector) | Done (0.3.0) |
 | 5 | Packet capture | Done (0.3.0), moved ahead of 3 and 4 |
-| 3 | Richer app identity and history | Next |
-| 3b | Unusual-activity hints | After 3 |
+| 3 | Richer app identity and history | Done (0.4.0) |
+| 3b | Unusual-activity hints | Next |
 | 4 | Blocking | After 3b |
 | 5+ | Capture follow-ups | Any time |
-| 6 | Replay and polish | Later |
+| 6 | Replay and polish (the settings page part is done in 0.4.0) | Later |
 | 7a | MCP server: let your own AI assistant read Portlight | Later; before 7 |
 | 7 | Ask questions with your own AI key | Later |
 
-### Milestone 3: richer app identity and history
+### Milestone 3: richer app identity and history (done in 0.4.0)
 
 - App icons in the list and on the map.
 - Identify an app by its publisher's signature as well as its path, so updates do not re-alert, and show the publisher ("Signed by Mozilla Corporation" or "Unsigned").
@@ -130,8 +149,9 @@ Rules that point out what looks odd, each with its reason in plain words ("Runs 
 ### Milestone 6: replay and polish
 
 - Replay a recorded capture on the map, with play, step and speed controls.
-- A settings page.
 - Translations.
+- Optional monthly refresh of the server owner list between releases (downloads the whole list, so it reveals nothing about which servers are used; off by default).
+- Clearer wording for DHCPv6, NetBIOS and traffic from virtual machines (WSL, Hyper-V) in packet summaries.
 
 ### Milestone 7a: an MCP server for AI assistants
 

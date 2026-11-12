@@ -10,11 +10,15 @@ use serde::{Deserialize, Serialize};
 /// How long the first run stays quiet while it notes what is already installed.
 pub const LEARNING_MS: u64 = 2 * 60 * 1000;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct KnownApp {
     pub name: String,
     pub first_seen: u64,
     pub trusted: bool,
+    /// Who signed the program, once checked. Lets an update that moves to a
+    /// new folder be recognised as the same app.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub publisher: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -50,6 +54,16 @@ impl KnownApps {
         fs::rename(&temp, path)
     }
 
+    /// Starts a new learning period: apps seen during it are trusted quietly.
+    pub fn learn_again(&mut self, now: u64) {
+        self.learning_until = now + LEARNING_MS;
+    }
+
+    /// Forgets every app and starts learning again, like a first run.
+    pub fn forget_all(&mut self, now: u64) {
+        *self = Self::first_run(now);
+    }
+
     pub fn is_learning(&self, now: u64) -> bool {
         now < self.learning_until
     }
@@ -64,6 +78,28 @@ impl KnownApps {
 
     pub fn insert(&mut self, id: String, app: KnownApp) {
         self.apps.insert(id, app);
+    }
+
+    /// A known app signed by the same publisher whose program file has the
+    /// same name, e.g. an earlier copy of `Discord.exe` from another folder.
+    pub fn same_program(&self, publisher: &str, exe: &str) -> Option<&KnownApp> {
+        let exe = exe.to_lowercase();
+        self.apps
+            .iter()
+            .filter(|(_, app)| app.publisher.as_deref() == Some(publisher))
+            .find(|(id, _)| file_name(id) == exe)
+            .map(|(_, app)| app)
+    }
+
+    /// Records who signed an app. Returns true if that changed anything.
+    pub fn set_publisher(&mut self, id: &str, publisher: Option<String>) -> bool {
+        match self.apps.get_mut(id) {
+            Some(app) if app.publisher != publisher => {
+                app.publisher = publisher;
+                true
+            }
+            _ => false,
+        }
     }
 
     /// Marks one app as trusted. Returns true if that changed anything.
@@ -96,6 +132,11 @@ impl KnownApps {
     }
 }
 
+/// The file name at the end of an app id (a lower-cased path).
+fn file_name(id: &str) -> &str {
+    id.rsplit(['\\', '/']).next().unwrap_or(id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,7 +159,7 @@ mod tests {
         let mut known = KnownApps::first_run(5);
         known.insert(
             "c:\\apps\\a.exe".into(),
-            KnownApp { name: "A".into(), first_seen: 5, trusted: false },
+            KnownApp { name: "A".into(), first_seen: 5, trusted: false, publisher: Some("Maker".into()) },
         );
         known.save(&path).unwrap();
 
@@ -136,10 +177,23 @@ mod tests {
     #[test]
     fn trust_reports_whether_anything_changed() {
         let mut known = KnownApps::default();
-        known.insert("a".into(), KnownApp { name: "A".into(), first_seen: 0, trusted: false });
+        known.insert("a".into(), KnownApp { name: "A".into(), first_seen: 0, trusted: false, publisher: None });
         assert!(known.trust("a"));
         assert!(!known.trust("a"));
         assert!(!known.trust("missing"));
         assert!(!known.trust_all());
+    }
+
+    #[test]
+    fn finds_the_same_program_signed_by_the_same_publisher() {
+        let mut known = KnownApps::default();
+        let discord = KnownApp { name: "Discord".into(), publisher: Some("Discord Inc.".into()), ..KnownApp::default() };
+        known.insert("c:\\users\\me\\discord\\app-1.0.1\\discord.exe".into(), discord);
+        assert!(known.same_program("Discord Inc.", "Discord.exe").is_some());
+        assert!(known.same_program("Someone Else", "Discord.exe").is_none());
+        assert!(known.same_program("Discord Inc.", "Update.exe").is_none());
+        // Lists saved before publishers were recorded still load.
+        let old: KnownApp = serde_json::from_str(r#"{"name":"A","first_seen":1,"trusted":true}"#).unwrap();
+        assert_eq!(old.publisher, None);
     }
 }

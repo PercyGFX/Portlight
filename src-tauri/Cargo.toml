@@ -20,11 +20,15 @@ tauri-build = { version = "2", features = [] }
 portlight-core.workspace = true
 portlight-platform.workspace = true
 portlight-packets.workspace = true
+portlight-geo.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-notification = "2"
 tauri-plugin-dialog = "2"
+rusqlite = { version = "0.37", features = ["bundled"] }
+png = "0.18"
+base64 = "0.21"
 tauri-plugin-single-instance = "2"
 dns-lookup = "3"
 sha2 = "0.10"

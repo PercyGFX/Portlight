@@ -1,27 +1,40 @@
 // Right panel: the big picture, or one app's details when an app is selected.
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
+import { useHistorySettings, type History } from "../hooks/useHistory";
 import { ago, bytes, plural, rate, shorten } from "../lib/format";
+import { ownerLine, ownerTitle, type Owner } from "../lib/owners";
 import { serviceOf } from "../lib/services";
 import { connectionTarget, serverTarget } from "../lib/targets";
-import type { AppView, CaptureTarget, ConnView, Source } from "../lib/types";
+import type { AppView, CaptureTarget, ConnView, Signature, Source } from "../lib/types";
+import { AppIcon } from "./AppIcon";
 import { CopyButton } from "./CopyButton";
-import { BackIcon, CheckIcon, RecordIcon } from "./icons";
+import { HistoryView } from "./HistoryView";
+import { BackIcon, CheckIcon, RecordIcon, ShieldCheckIcon, ShieldIcon } from "./icons";
+import { WeekSummary } from "./WeekSummary";
+
+type Tab = "now" | "history";
 
 interface Props {
   app: AppView | null;
   apps: AppView[];
   connections: ConnView[];
   hosts: ReadonlyMap<string, string>;
+  owners: ReadonlyMap<string, Owner>;
   now: number;
   source: Source | null;
   onTrust(id: string): void;
   onBack(): void;
+  onSelect(id: string): void;
   onCapture(target: CaptureTarget): void;
 }
 
-export function DetailsPanel({ app, apps, connections, hosts, now, source, onTrust, onBack, onCapture }: Props) {
+export function DetailsPanel({ app, apps, connections, hosts, owners, now, source, onTrust, onBack, onSelect, onCapture }: Props) {
+  const history = useHistorySettings();
+  // Kept here, so moving from app to app stays on the same tab.
+  const [tab, setTab] = useState<Tab>("now");
+
   return (
     <section className="panel details-panel" aria-label={app ? "App details" : "Overview"}>
       <header className="panel-head">
@@ -40,17 +53,30 @@ export function DetailsPanel({ app, apps, connections, hosts, now, source, onTru
           hosts={hosts}
           now={now}
           detailed={source === "detailed"}
+          tab={tab}
+          history={history}
+          onTab={setTab}
           onTrust={onTrust}
           onCapture={onCapture}
         />
       ) : (
-        <Overview apps={apps} connections={connections} hosts={hosts} onCapture={onCapture} />
+        <Overview
+          apps={apps}
+          connections={connections}
+          hosts={hosts}
+          owners={owners}
+          history={history}
+          onSelect={onSelect}
+          onCapture={onCapture}
+        />
       )}
     </section>
   );
 }
 
-function Overview({ apps, connections, hosts, onCapture }: Pick<Props, "apps" | "connections" | "hosts" | "onCapture">) {
+type OverviewProps = Pick<Props, "apps" | "connections" | "hosts" | "owners" | "onSelect" | "onCapture"> & { history: History };
+
+function Overview({ apps, connections, hosts, owners, history, onSelect, onCapture }: OverviewProps) {
   const online = apps.filter((a) => a.connections > 0).length;
   const fresh = apps.filter((a) => !a.trusted).length;
 
@@ -75,9 +101,14 @@ function Overview({ apps, connections, hosts, onCapture }: Pick<Props, "apps" | 
       <ul className="kv-list">
         {busiest.map(([ip, count]) => {
           const host = hosts.get(ip);
+          const owner = owners.get(ip);
+          const where = ownerLine(owner, ip);
           return (
             <li key={ip} className="has-action">
-              <span className="kv-main" title={host ? `${host} (${ip})` : ip}>{shorten(host ?? ip, 24)}</span>
+              <span className="kv-stack">
+                <span className="kv-main" title={host ? `${host} (${ip})` : ip}>{shorten(host ?? ip, 24)}</span>
+                {where && <span className="kv-owner" title={ownerTitle(owner, ip) ?? undefined}>{where}</span>}
+              </span>
               <span className="kv-side">{plural(count, "connection")}</span>
               <span className="kv-copy">
                 {host && <CopyButton value={host} what="site name" />}
@@ -89,6 +120,8 @@ function Overview({ apps, connections, hosts, onCapture }: Pick<Props, "apps" | 
         })}
         {busiest.length === 0 && <li className="empty">Nothing is connected.</li>}
       </ul>
+
+      <WeekSummary apps={apps} history={history} onSelect={onSelect} />
     </div>
   );
 }
@@ -99,11 +132,14 @@ interface AppDetailsProps {
   hosts: ReadonlyMap<string, string>;
   now: number;
   detailed: boolean;
+  tab: Tab;
+  history: History;
+  onTab(tab: Tab): void;
   onTrust(id: string): void;
   onCapture(target: CaptureTarget): void;
 }
 
-function AppDetails({ app, connections, hosts, now, detailed, onTrust, onCapture }: AppDetailsProps) {
+function AppDetails({ app, connections, hosts, now, detailed, tab, history, onTab, onTrust, onCapture }: AppDetailsProps) {
   const mine = connections.filter((c) => c.appId === app.id);
   const badge = !app.trusted ? ["New", "badge-new"] : app.connections > 0 ? ["Online", "badge-online"] : ["Idle", "badge-idle"];
   const speed = useRate(app, now);
@@ -111,13 +147,17 @@ function AppDetails({ app, connections, hosts, now, detailed, onTrust, onCapture
   return (
     <div className="details-body step-in">
       <div className="details-title">
-        <h3>{app.name}</h3>
+        <AppIcon appId={app.id} name={app.name} size={40} className="details-icon" />
+        <div className="details-name">
+          <h3>{app.name}</h3>
+          <p className="details-exe has-copy">
+            <span>{app.exe || "Processes Windows will not name"}</span>
+            {app.exe && <CopyButton value={app.exe} what="program name" />}
+          </p>
+        </div>
         <span className={`badge ${badge[1]}`}>{badge[0]}</span>
       </div>
-      <p className="details-exe has-copy">
-        <span>{app.exe || "Processes Windows will not name"}</span>
-        {app.exe && <CopyButton value={app.exe} what="program name" />}
-      </p>
+      {app.path !== null && <SignatureNote signature={app.signature} />}
 
       <p className="details-text">
         {app.connections > 0
@@ -142,67 +182,114 @@ function AppDetails({ app, connections, hosts, now, detailed, onTrust, onCapture
         <RecordIcon /> Capture this app's packets
       </button>
 
-      <dl className="facts">
-        <dt>Program</dt>
-        <dd className="is-path has-copy copyable">
-          <span>{app.path ?? "Hidden by Windows"}</span>
-          {app.path && <CopyButton value={app.path} what="program path" />}
-        </dd>
-        <dt>First seen</dt>
-        <dd>{ago(app.firstSeen, now)}</dd>
-        <dt>Open now</dt>
-        <dd>{plural(app.connections, "connection")}</dd>
-        <dt>Opened</dt>
-        <dd>{app.totalOpened} since Portlight started</dd>
-        <dt>Data used</dt>
-        {detailed ? (
-          <dd className="data-used">
-            <span>
-              <strong>{bytes(app.bytesReceived)}</strong> down · <strong>{bytes(app.bytesSent)}</strong> up
-            </span>
-            <span className="data-rate" title="Over the last few seconds">
-              {speed ? `now ${rate(speed.down)} down · ${rate(speed.up)} up` : "measuring…"}
-            </span>
-          </dd>
-        ) : (
-          <dd className="muted">Turn on detailed monitoring to see data used.</dd>
-        )}
-      </dl>
+      <div className="segmented details-tabs" role="tablist" aria-label="Show">
+        <button role="tab" aria-selected={tab === "now"} className={tab === "now" ? "is-active" : ""} onClick={() => onTab("now")}>
+          Right now
+        </button>
+        <button role="tab" aria-selected={tab === "history"} className={tab === "history" ? "is-active" : ""} onClick={() => onTab("history")}>
+          History
+        </button>
+      </div>
 
-      <h3 className="section-title">Connected to</h3>
-      <ul className="kv-list">
-        {mine.map((conn) => {
-          const host = conn.host ?? hosts.get(conn.remoteIp);
-          const service = conn.protocol === "udp" && conn.remotePort === 443 ? "QUIC" : serviceOf(conn.remotePort).label;
-          return (
-            <li key={conn.id} className="has-action">
-              <button
-                className="link kv-main"
-                title={`${host ? `${host} (${conn.remoteIp})` : conn.remoteIp}. Click to capture every packet to and from this server.`}
-                onClick={() => onCapture(serverTarget(conn.remoteIp, host))}
-              >
-                {shorten(host ?? conn.remoteIp, 22)}
-              </button>
-              {conn.protocol === "udp" && <span className="tag tag-udp" title="UDP: quick messages without a connection">UDP</span>}
-              <span className="kv-side" title={detailed ? `${bytes(conn.bytesReceived)} down, ${bytes(conn.bytesSent)} up` : undefined}>
-                {service}
-                {detailed && ` · ${bytes(conn.bytesReceived + conn.bytesSent)}`}
-              </span>
-              <span className="kv-copy">
-                {host && <CopyButton value={host} what="site name" />}
-                <CopyButton value={`${conn.remoteIp}:${conn.remotePort}`} what="address and port" />
-              </span>
-              <CaptureButton
-                label={`Capture this connection only (${app.name} ↔ ${host ?? conn.remoteIp}:${conn.remotePort})`}
-                onClick={() => onCapture(connectionTarget(conn, app.name, host))}
-              />
-            </li>
-          );
-        })}
-        {mine.length === 0 && <li className="empty">No open connections.</li>}
-      </ul>
+      {tab === "history" ? (
+        <HistoryView app={app} history={history} />
+      ) : (
+        <div className="step-in">
+          <dl className="facts">
+            <dt>Program</dt>
+            <dd className="is-path has-copy copyable">
+              <span>{app.path ?? "Hidden by Windows"}</span>
+              {app.path && <CopyButton value={app.path} what="program path" />}
+            </dd>
+            <dt>First seen</dt>
+            <dd>{ago(app.firstSeen, now)}</dd>
+            <dt>Open now</dt>
+            <dd>{plural(app.connections, "connection")}</dd>
+            <dt>Opened</dt>
+            <dd>{app.totalOpened} since Portlight started</dd>
+            <dt>Data used</dt>
+            {detailed ? (
+              <dd className="data-used">
+                <span>
+                  <strong>{bytes(app.bytesReceived)}</strong> down · <strong>{bytes(app.bytesSent)}</strong> up
+                </span>
+                <span className="data-rate" title="Over the last few seconds">
+                  {speed ? `now ${rate(speed.down)} down · ${rate(speed.up)} up` : "measuring…"}
+                </span>
+              </dd>
+            ) : (
+              <dd className="muted">Turn on detailed monitoring to see data used.</dd>
+            )}
+          </dl>
+
+          <h3 className="section-title">Connected to</h3>
+          <ul className="kv-list">
+            {mine.map((conn) => {
+              const host = conn.host ?? hosts.get(conn.remoteIp);
+              const service = conn.protocol === "udp" && conn.remotePort === 443 ? "QUIC" : serviceOf(conn.remotePort).label;
+              const where = ownerLine(conn, conn.remoteIp);
+              return (
+                <li key={conn.id} className="has-action">
+                  <span className="kv-stack">
+                    <button
+                      className="link kv-main"
+                      title={`${host ? `${host} (${conn.remoteIp})` : conn.remoteIp}. Click to capture every packet to and from this server.`}
+                      onClick={() => onCapture(serverTarget(conn.remoteIp, host))}
+                    >
+                      {shorten(host ?? conn.remoteIp, 22)}
+                    </button>
+                    {where && <span className="kv-owner" title={ownerTitle(conn, conn.remoteIp) ?? undefined}>{where}</span>}
+                  </span>
+                  {conn.protocol === "udp" && <span className="tag tag-udp" title="UDP: quick messages without a connection">UDP</span>}
+                  <span className="kv-side" title={detailed ? `${bytes(conn.bytesReceived)} down, ${bytes(conn.bytesSent)} up` : undefined}>
+                    {service}
+                    {detailed && ` · ${bytes(conn.bytesReceived + conn.bytesSent)}`}
+                  </span>
+                  <span className="kv-copy">
+                    {host && <CopyButton value={host} what="site name" />}
+                    <CopyButton value={`${conn.remoteIp}:${conn.remotePort}`} what="address and port" />
+                  </span>
+                  <CaptureButton
+                    label={`Capture this connection only (${app.name} ↔ ${host ?? conn.remoteIp}:${conn.remotePort})`}
+                    onClick={() => onCapture(connectionTarget(conn, app.name, host))}
+                  />
+                </li>
+              );
+            })}
+            {mine.length === 0 && <li className="empty">No open connections.</li>}
+          </ul>
+        </div>
+      )}
     </div>
   );
+}
+
+const UNSIGNED_NOTE = "Most well-known apps are signed by their maker. Unsigned isn't always bad, but it's worth knowing who made it.";
+
+/** Who made the program, from its digital signature. */
+function SignatureNote({ signature }: { signature: Signature }) {
+  if (signature.state === "signed") {
+    return (
+      <p className="signature is-signed" title="Windows checked the program's digital signature on this PC.">
+        <ShieldCheckIcon />
+        <span>
+          Signed by <strong>{signature.publisher}</strong>
+        </span>
+      </p>
+    );
+  }
+  if (signature.state === "unsigned") {
+    return (
+      <div className="signature is-unsigned">
+        <ShieldIcon />
+        <span>
+          <strong>Not signed</strong>
+          <span>{UNSIGNED_NOTE}</span>
+        </span>
+      </div>
+    );
+  }
+  return <p className="signature is-checking">Checking the signature…</p>;
 }
 
 /** Small round "record" button at the end of a list row. */

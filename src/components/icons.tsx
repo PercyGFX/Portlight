@@ -143,6 +143,47 @@ export const DownIcon = () => (
   </Icon>
 );
 
+/** A shield with a tick: signed by its maker. */
+export const ShieldCheckIcon = () => (
+  <Icon>
+    <path d="M8 1.8 13 3.6v4c0 3.2-2.1 5.6-5 6.6-2.9-1-5-3.4-5-6.6v-4Z" />
+    <path d="m5.8 8 1.6 1.6 3-3.2" />
+  </Icon>
+);
+
+/** A plain shield with a mark: not signed. */
+export const ShieldIcon = () => (
+  <Icon>
+    <path d="M8 1.8 13 3.6v4c0 3.2-2.1 5.6-5 6.6-2.9-1-5-3.4-5-6.6v-4Z" />
+    <path d="M8 5.2v3.4" />
+    <circle cx="8" cy="10.9" r=".5" fill="currentColor" />
+  </Icon>
+);
+
+/** A clock turning back: history. */
+export const HistoryIcon = () => (
+  <Icon>
+    <path d="M2.6 8a5.4 5.4 0 1 0 1.6-3.8" />
+    <path d="M2.4 2.6v2.6H5" />
+    <path d="M8 5.2V8l2 1.4" />
+  </Icon>
+);
+
+export const GearIcon = () => (
+  <Icon>
+    <circle cx="8" cy="8" r="2.2" />
+    <path d="M8 1.6v1.8M8 12.6v1.8M1.6 8h1.8M12.6 8h1.8M3.5 3.5l1.3 1.3M11.2 11.2l1.3 1.3M3.5 12.5l1.3-1.3M11.2 4.8l1.3-1.3" />
+    <circle cx="8" cy="8" r="4.6" />
+  </Icon>
+);
+
+/** An arrow out of a box: opens in the browser or Explorer. */
+export const ExternalIcon = () => (
+  <Icon>
+    <path d="M9.5 2.5h4v4M13.5 2.5 7.5 8.5M12 9.5v3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3" />
+  </Icon>
+);
+
 /** The Portlight mark: a ship's porthole with one light on the water line. */
 export function Logo() {
   return (

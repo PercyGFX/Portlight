@@ -46,6 +46,9 @@ fn work(app: AppHandle, jobs: Arc<Mutex<Receiver<IpAddr>>>) {
         // Hold the lock only to take one job, so the other workers stay busy.
         let job = jobs.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).recv();
         let Ok(ip) = job else { return };
+        if !app.state::<AppState>().settings().reverse_lookups {
+            continue;
+        }
 
         match dns_lookup::lookup_addr(&ip) {
             // With no name on record the lookup hands the address back as text.

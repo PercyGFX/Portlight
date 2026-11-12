@@ -10,6 +10,8 @@ import { backend } from "../../lib/backend";
 import { bytes, count, elapsed } from "../../lib/format";
 import { sameTarget, targetDescription, targetLabel, targetTitle } from "../../lib/targets";
 import type { AppView, CaptureStartOptions, CaptureTarget, ConnView, PacketDetail, PacketRow } from "../../lib/types";
+import { ownerLine, ownerTitle, type Owner } from "../../lib/owners";
+import { AppIcon } from "../AppIcon";
 import { CopyButton } from "../CopyButton";
 import { BackIcon, CheckIcon, ChevronDownIcon, CloseIcon, LockIcon, RecordIcon, StopIcon } from "../icons";
 import { CaptureTargetPicker } from "./CaptureTargetPicker";
@@ -29,6 +31,7 @@ interface Props {
   apps: AppView[];
   connections: ConnView[];
   hosts: ReadonlyMap<string, string>;
+  owners: ReadonlyMap<string, Owner>;
   leaving: boolean;
   /** An entry point asked to start recording straight away. */
   autoStart: boolean;
@@ -48,7 +51,7 @@ const STOP_UNITS = [
 const DNS_NOTE =
   "Name lookups (DNS) are made by Windows on the app's behalf, so they appear under Windows system services, not this app.";
 
-export function CapturePage({ capture, target, apps, connections, hosts, leaving, autoStart, onAutoStarted, onTarget, onBack }: Props) {
+export function CapturePage({ capture, target, apps, connections, hosts, owners, leaving, autoStart, onAutoStarted, onTarget, onBack }: Props) {
   const { support, status } = capture;
   const [card, setCard] = useState("");
   const [captureFilter, setCaptureFilter] = useState("");
@@ -73,6 +76,13 @@ export function CapturePage({ capture, target, apps, connections, hosts, leaving
   const listKey = `${status.startedAt}|${status.filter}`;
   const filtered = status.filter !== "";
   const cardName = card ? (support?.interfaces.find((i) => i.id === card)?.name ?? "One network card") : "All active network cards";
+  const targetApp = useMemo(() => appOf(shownTarget, apps), [shownTarget, apps]);
+  const serverIp = useMemo(() => serverIpOf(shownTarget, connections, hosts), [shownTarget, connections, hosts]);
+  const serverOwner = useMemo(() => {
+    if (!serverIp) return null;
+    const conn = connections.find((c) => c.remoteIp === serverIp && (c.owner || c.country));
+    return conn ? { owner: conn.owner, country: conn.country } : (owners.get(serverIp) ?? null);
+  }, [serverIp, connections, owners]);
 
   // A new capture forgets the chosen packet.
   useEffect(() => {
@@ -188,7 +198,10 @@ export function CapturePage({ capture, target, apps, connections, hosts, leaving
         </button>
 
         <div className="capture-heading">
-          <h1>{targetTitle(shownTarget)}</h1>
+          <div className="capture-title">
+            {targetApp && <AppIcon appId={targetApp.id} name={targetApp.name} size={28} />}
+            <h1>{targetTitle(shownTarget)}</h1>
+          </div>
           <div className="capture-setup">
             <span className="setup-label">Capture</span>
             <CaptureTargetPicker target={target} apps={apps} connections={connections} hosts={hosts} onChange={onTarget} />
@@ -337,7 +350,16 @@ export function CapturePage({ capture, target, apps, connections, hosts, leaving
 
       {available && (
         <section className="panel capture-overview" aria-label="What is being captured">
-          <ConversationStrip target={shownTarget} cards={cardName} running={running} shown={status.shown} listKey={listKey} />
+          <ConversationStrip
+            target={shownTarget}
+            cards={cardName}
+            running={running}
+            shown={status.shown}
+            listKey={listKey}
+            appId={targetApp?.id ?? null}
+            owner={ownerLine(serverOwner, serverIp ?? undefined)}
+            ownerAbout={ownerTitle(serverOwner, serverIp ?? undefined)}
+          />
           <dl className="counters" aria-live="off">
             <div>
               <dt>Packets</dt>
@@ -406,6 +428,24 @@ export function CapturePage({ capture, target, apps, connections, hosts, leaving
       )}
     </div>
   );
+}
+
+/** The app being captured, for its icon: the app itself, or the app of one connection. */
+function appOf(target: CaptureTarget, apps: AppView[]): AppView | null {
+  if (target.kind === "app") return apps.find((app) => app.id === target.appId) ?? null;
+  if (target.kind === "connection") return apps.find((app) => app.name === target.appName) ?? null;
+  return null;
+}
+
+/** One address of the server being captured, to say who runs its network. */
+function serverIpOf(target: CaptureTarget, connections: ConnView[], hosts: ReadonlyMap<string, string>): string | null {
+  if (target.kind === "host") return target.ip;
+  if (target.kind === "connection") return target.remoteIp;
+  if (target.kind !== "domain") return null;
+  const conn = connections.find((c) => (c.host ?? hosts.get(c.remoteIp)) === target.name);
+  if (conn) return conn.remoteIp;
+  for (const [ip, host] of hosts) if (host === target.name) return ip;
+  return null;
 }
 
 /** Problems and notes about the capture, each in plain words. */
